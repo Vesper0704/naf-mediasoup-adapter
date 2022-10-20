@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8" />
+  <title>Shooter Example — Networked-Aframe</title>
+  <meta name="description" content="Shooter Example — Networked-Aframe" />
+
+  <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.5.0/socket.io.slim.js"></script>
+  <!-- <script src="../dist/socketio_client_2.4.min.js"></script> -->
+  <script src="../dist/networked-aframe.js"></script>
+
+  <!-- mediasoup-client necessary -->
+  <script src="../dist/mediasoupclient.min.js"></script>
+  <script>
+    console.log('mediasoup-client-version', mediasoupClient.version);
+  </script>
+  <script src="https://unpkg.com/aframe-randomizer-components@^3.0.1/dist/aframe-randomizer-components.min.js"></script>
+  <script src="https://unpkg.com/aframe-environment-component@1.3.1/dist/aframe-environment-component.min.js"></script>
+  <script src="./js/spawn-in-circle.component.js"></script>
+  <script src="./js/gun.component.js"></script>
+</head>
+
+<body>
+  <a-scene networked-scene="
+      room: shooter;
+      debug: true;
+      adapter: mediasoup;
+      video: true;
+      audio: true;
+    ">
+    <a-assets>
+      <!-- Templates -->
+      <!-- [x] 不渲染 解决NAF.utils.getNetworkedEntity(this.el)无法获取owner的同步问题 -->
+      <img id="sky" src="" crossorigin="anonymous" />
+      <!-- Avatar -->
+      <template id="avatar-template">
+        <a-entity class="avatar">
+          <a-plane color="#FFF" width="4" height="3" position="0 -2 -5" material="side: front" networked-video-source>
+          </a-plane>
+          <!-- <a-plane color="#FFF" width="4" height="3" rotation="0 0 0" position="0 5 0" material="side: front"
+            networked-video-source> -->
+          </a-plane>
+          <a-sphere class="head" scale="0.45 0.5 0.4"></a-sphere>
+          <a-entity class="face" position="0 0.05 0">
+            <a-sphere class="eye" color="#efefef" position="0.16 0.1 -0.35" scale="0.12 0.12 0.12">
+              <a-sphere class="pupil" color="#000" position="0 0 -1" scale="0.2 0.2 0.2"></a-sphere>
+            </a-sphere>
+            <a-sphere class="eye" color="#efefef" position="-0.16 0.1 -0.35" scale="0.12 0.12 0.12">
+              <a-sphere class="pupil" color="#000" position="0 0 -1" scale="0.2 0.2 0.2"></a-sphere>
+            </a-sphere>
+          </a-entity>
+          <a-entity class="gun">
+            <a-box position="0.51 -0.13 -0.29" scale="0.19 0.23 0.67" color="#000"></a-box>
+            <a-entity class="gun-tip" position="0.51 -0.10 -0.64"></a-entity>
+          </a-entity>
+        </a-entity>
+      </template>
+
+      <!-- Bullet -->
+      <template id="bullet-template">
+        <a-entity>
+          <a-sphere class="bullet" scale="0.1 0.1 0.1" color="#fff"></a-sphere>
+        </a-entity>
+      </template>
+
+      <!-- /Templates -->
+    </a-assets>
+
+    <a-entity id="rig">
+      <a-entity id="player" networked="template:#avatar-template;attachTemplateToLocal:true" camera position="0 4 0"
+        wasd-controls look-controls gun="bulletTemplate:#bullet-template">
+        <a-sphere class="head" visible="false" random-color></a-sphere>
+      </a-entity>
+
+    </a-entity>
+
+    <a-entity environment="preset:arches"></a-entity>
+    <a-entity light="type:ambient;intensity:0.5"></a-entity>
+  </a-scene>
+
+  <script>
+    // Called by Networked-Aframe when connected to server
+    function onConnect() {
+      console.log('onConnect', new Date());
+    }
+    NAF.schemas.add({
+          template: '#avatar-template',
+          components: [
+            'position',
+            'rotation',
+            {
+              selector: '.head',
+              component: 'material',
+              property: 'color'
+            }
+          ]
+        });
+  </script>
+</body>
+
+</html>

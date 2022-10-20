@@ -1,0 +1,17 @@
+{
+  "name": "medaisoup-server",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "ms-server": "node ./server/mediasoup-server.js"
+  },
+  "keywords": [],
+  "author": "drj",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.18.1",
+    "socket.io": "^2.4.0",
+    "mediasoup": "3.10.5"
+  }
+}
