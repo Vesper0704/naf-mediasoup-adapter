@@ -16,26 +16,30 @@ class MediasoupAdapter {
         this.occupants = {}; // id -> joinTimestamp
         this.connectedClients = [];
 
-        this.device = null; // 设备
+        this.device = null; // local Device (will connect to server-side router through transport)
 
         this.producerTransport = null;   // producerTransport 
         this.consumerTransport = null;   // consumerTransport
 
-        this.videoProducer = {};   // producerId->producer实例
-        this.videoConsumers = {};  // consumerId->consumer实例
+        this.videoProducer = {};   // producerId->producer instance
+        this.videoConsumers = {};  // consumerId->consumer instance
 
-        this.audioProducer = {};   // producerId->producer实例
-        this.audioConsumers = {};  // consumerId->consumer实例
+        this.audioProducer = {};   // producerId->producer instance
+        this.audioConsumers = {};  // consumerId->consumer instance
 
-        // 存储client对应的媒体流
+        this.iceServers = [
+            { "urls": "stun:stun1.l.google.com:19302" },
+            { "urls": "stun:stun2.l.google.com:19302" },
+        ]
+
+        // store video/audio streams of clients
         this.audioStreams = {};  // clientId->audioStream
         this.videoStreams = {};  // clientId->videoStream
         this.pendingAudioRequest = {};
         this.pendingVideoRequest = {};
 
-        // 时间统计
         this.serverTimeRequests = 0;
-        this.timeOffsets = []; // 只保存10个时隙的
+        this.timeOffsets = []; 
         this.avgTimeOffset = 0;
     }
 
@@ -69,7 +73,6 @@ class MediasoupAdapter {
     }
 
     setRoomOccupantListener(occupantListener) {
-        // 触发occupantListener回调
         this.occupantListener = occupantListener;
     }
 
@@ -79,7 +82,6 @@ class MediasoupAdapter {
         this.messageListener = messageListener;
     }
 
-    // NetworkConnection.js设置上面的options之后调用
     connect() {
         const self = this;
 
@@ -105,8 +107,8 @@ class MediasoupAdapter {
                 }
 
                 socket.on("connect", async () => {
-                    NAF.log.write("成功连接到ws", socket.id);
-                    self.myId = socket.id; // 存储和ws连接之后的id
+                    NAF.log.write("successfully connected to websocket", socket.id);
+                    self.myId = socket.id;
                     self.joinRoom();
                 });
 
@@ -136,20 +138,17 @@ class MediasoupAdapter {
 
                             if (localStream) self.storeAudioStream(self.myId, localStream)
                             console.log('存储音频流')
-                            if (!self.producerTransport) return console.log('producerTransport还未创建')
-                            if (!self.device.canProduce('audio')) return console.log('device不支持发布音频')
+                            if (!self.producerTransport) return console.error('producerTransport not created yet')
+                            if (!self.device.canProduce('audio')) return console.error('device does not support audio')
 
                             try {
                                 const track = localStream.getAudioTracks()[0]
                                 const params = { track }
-                                if (!self.producerTransport) {
-                                    throw "没有创建producerTransport"
-                                }
                                 // 发布流 on('produce')
                                 const producer = await self.producerTransport.produce(params)
                                 // self.audioProducer[producer.id] = producer // producer.kind === 'audio'
                             } catch (e) {
-                                console.log('produce音频失败', e);
+                                console.error('produce音频失败', e);
                             }
                         }
 
@@ -158,15 +157,12 @@ class MediasoupAdapter {
                             if (localStream) self.storeVideoStream(self.myId, localStream)
                             console.log('存储视频流')
 
-                            if (!self.producerTransport) return console.log('producerTransport还未创建')
-                            if (!self.device.canProduce('video')) return console.log('device不支持发布视频')
+                            if (!self.producerTransport) return console.error('producerTransport not created yet')
+                            if (!self.device.canProduce('video')) return console.error('device does not support video')
 
                             try {
                                 const track = localStream.getVideoTracks()[0]
                                 const params = { track }
-                                if (!self.producerTransport) {
-                                    throw "没有创建producerTransport"
-                                }
                                 // 发布流 on('produce')
                                 const producer = await self.producerTransport.produce(params)
                                 // self.videoProducer[producer.id] = producer // producer.kind === 'video'
@@ -464,9 +460,20 @@ class MediasoupAdapter {
                 forceTcp: false,
                 rtpCapabilities: self.device.rtpCapabilities,
             })
-            if (data.error) return console.log('createProducerTransport出错')
+            if (data.error) return console.log('createProducerTransport error')
             // transportId = data.params.id
-            self.producerTransport = self.device.createSendTransport(data.params)
+            /**
+             *  params: {
+                    id: transport.id,
+                    iceParameters: transport.iceParameters,
+                    iceCandidates: transport.iceCandidates,   
+                    dtlsParameters: transport.dtlsParameters
+                }
+             */
+            self.producerTransport = self.device.createSendTransport({
+                ...data.params,
+                iceServers: self.iceServers
+            })
 
             self.producerTransport.on('connect', async ({ dtlsParameters }, successCall, failureCall) => {
                 // console.log('producer transport connect');
@@ -518,7 +525,10 @@ class MediasoupAdapter {
 
             if (data.error) return console.log('createConsumerTransport failure', data.error)
 
-            self.consumerTransport = self.device.createRecvTransport(data.params)
+            self.consumerTransport = self.device.createRecvTransport({
+                ...data.params,
+                iceServers: self.iceServers
+            })
 
             self.consumerTransport.on('connect', async ({ dtlsParameters }, successCall, failureCall) => {
                 console.log('consumer transport connect');
