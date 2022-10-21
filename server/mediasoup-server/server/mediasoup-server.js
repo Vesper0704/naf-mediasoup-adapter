@@ -25,7 +25,7 @@ let producerListMap = new Map();  // producerid->producer instance
 let consumerListMap = new Map(); // consumerid->consumer instance
 
 
-// IIF 创造await的执行环境
+// IIF create websocket server and mediasoup worker/router
 (async function () {
     createSocketServer()
     await createMediasoupWorkerAndRouter()

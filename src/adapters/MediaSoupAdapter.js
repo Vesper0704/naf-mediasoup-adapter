@@ -1,7 +1,4 @@
 /* global NAF, io */
-
-const { log } = require("../NafIndex");
-
 class MediasoupAdapter {
     constructor() {
         if (io === undefined)
@@ -394,11 +391,11 @@ class MediasoupAdapter {
 
     async subscribeStream(producerId, socketId) {
 
-        if (!this.consumerTransport) return console.log('consumerTransport不存在 无法订阅')
+        if (!this.consumerTransport) return console.log(`consumerTransport doesn't exist`)
 
         const { kind, newStream: consumerstream } = await this.getConsumeStream(this.consumerTransport, producerId)
 
-        console.log('订阅成功', { kind, consumerstream });
+        console.log('subscribe sucessfully', { kind, consumerstream });
 
         // 视频
         switch (kind) {
@@ -450,7 +447,7 @@ class MediasoupAdapter {
             return e
         }
         await self.device.load({ routerRtpCapabilities })
-        console.log('MediasoupClient设备加载完成');
+        console.log('MediasoupClient Device load successfully');
         return null
     }
 
@@ -458,8 +455,8 @@ class MediasoupAdapter {
     // 加入之后创建transport
     async initialProducerConsumerTransport() {
         const self = this
-        if (!self.device) return console.warn('设备还没有加载 无法发布流')
-        if (self.producerTransport && self.consumerTransport) return console.log('无需重复创建transport')
+        if (!self.device) return console.warn('Device not loaded')
+        if (self.producerTransport && self.consumerTransport) return console.log('transport aready exists')
 
         // 创建producerTransport
         {
@@ -472,7 +469,7 @@ class MediasoupAdapter {
             self.producerTransport = self.device.createSendTransport(data.params)
 
             self.producerTransport.on('connect', async ({ dtlsParameters }, successCall, failureCall) => {
-                console.log('producer transport 连接');
+                // console.log('producer transport connect');
                 self.socket.request('connectProducerTransport', { dtlsParameters })
                     .then(successCall)
                     .catch(failureCall)
@@ -480,7 +477,7 @@ class MediasoupAdapter {
 
             self.producerTransport.on('produce', async ({ kind, rtpParameters }, successCall, failureCall) => {
                 try {
-                    console.log('produce流', kind);
+                    console.log('produce stream', kind);
                     const { producerId: id } = await self.socket.request('produce', {
                         id: self.producerTransport.id,
                         kind,
@@ -498,12 +495,12 @@ class MediasoupAdapter {
                         break;
 
                     case 'connected':
-                        console.log('producerTransport  连接成功！');
+                        console.log('producerTransport connected');
                         break;
 
                     case 'failed':
                         self.producerTransport.close();
-                        console.log('SendTranport关闭');
+                        console.log('SendTranport close');
                         break;
 
                     default:
@@ -519,7 +516,7 @@ class MediasoupAdapter {
                 forceTcp: false
             })
 
-            if (data.error) return console.log('createConsumerTransport失败', data.error)
+            if (data.error) return console.log('createConsumerTransport failure', data.error)
 
             self.consumerTransport = self.device.createRecvTransport(data.params)
 
@@ -533,13 +530,13 @@ class MediasoupAdapter {
             self.consumerTransport.on('connectionstatechange', async (state) => {
                 switch (state) {
                     case 'connecting':
-                        console.log('consumer connecting');
+                        // console.log('consumer connecting');
                         break;
                     case 'connected':
-                        console.log('consumerTransport 连接成功！');
+                        console.log('consumerTransport connected');
                         break;
                     case 'failed':
-                        console.log('consumer connect fail');
+                        console.log('consumerTransport connect fail');
                         self.consumerTransport.close()
                         break;
                     default:
