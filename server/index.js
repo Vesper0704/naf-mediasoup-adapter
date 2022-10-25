@@ -40,7 +40,7 @@ async function registerEventsAndCallback(socket) {
 
     // createProducerTransport event: triggered when the frontend produces the stream
     socket.on('createProducerTransport', async (_, callback) => {
-        const { transport, params, error } = await createWebRTCTransport()
+        const { transport, params, error } = await createWebRTCTransport(socket)
         if (error) return callback({ error })
 
         // set producerTransport for each socket client
@@ -69,7 +69,6 @@ async function registerEventsAndCallback(socket) {
             rtpParameters
         })
 
-
         let prevList = producerIdList.get(socket.id)
         if (!prevList) prevList = []
         prevList.push(producer.id)
@@ -87,7 +86,7 @@ async function registerEventsAndCallback(socket) {
 
     socket.on('createConsumerTransport', async (_, callback) => {
         try {
-            const { transport, params, error } = await createWebRTCTransport()
+            const { transport, params, error } = await createWebRTCTransport(socket)
             if (error) {
                 console.log('fail to create consumerTransport')
                 callback({ error })
@@ -114,9 +113,62 @@ async function registerEventsAndCallback(socket) {
             callback(null)
             return console.log('no corresponding producer found')
         }
-        console.log(producer);
+        console.log('producerType ', producer.type);
+        /**
+         * producerRtpParameters  {
+                codecs: [
+                    {
+                    mimeType: 'video/VP8',
+                    payloadType: 96,
+                    clockRate: 90000,
+                    parameters: {},
+                    rtcpFeedback: [Array]
+                    },
+                    {
+                    mimeType: 'video/rtx',
+                    payloadType: 97,
+                    clockRate: 90000,
+                    parameters: [Object],
+                    rtcpFeedback: []
+                    }
+                ],
+                headerExtensions: [ ],
+                // depends on what encodings producer use
+                encodings: [
+                    {
+                    active: true,
+                    maxBitrate: 100000,
+                    rid: 'r0',
+                    scalabilityMode: 'S1T3',
+                    dtx: false
+                    },
+                    {
+                    active: true,
+                    maxBitrate: 300000,
+                    rid: 'r1',
+                    scalabilityMode: 'S1T3',
+                    dtx: false
+                    },
+                    {
+                    active: true,
+                    maxBitrate: 600000,
+                    rid: 'r2',
+                    scalabilityMode: 'S1T3',
+                    dtx: false
+                    }
+                ],
+                rtcp: { cname: 'dd9a8e43', reducedSize: true },
+                mid: '0'
+                }
+         */
+        // console.log('producerRtpParameters ', producer.rtpParameters);
         const consumer = await createConsumer(producer, rtpCapabilities, socket.id)
-        callback(consumer)
+        if (consumer) {
+            console.log('consumerType ', consumer.type);
+            callback(consumer)
+        }else {
+            callback(null)
+        }
     })
 
     socket.on('gatherProducers', (_, callback) => {
@@ -162,7 +214,7 @@ async function registerEventsAndCallback(socket) {
     })
 }
 
-async function createWebRTCTransport() {
+async function createWebRTCTransport(socket) {
     const {
         maxIncomingBitrate,
         initialAvailableOutgoingBitrate
@@ -172,9 +224,37 @@ async function createWebRTCTransport() {
         listenIps: config.mediasoup.webRtcTransport.listenIps,
         enableUdp: true,
         enableTcp: true,
-        preferUdp: true,  // prefer UDP协议 实时灵活 也是webrtc首选的(webrtc支持TCP的candidate)
+        preferUdp: true,
         initialAvailableOutgoingBitrate,
     });
+
+
+    transport.on('icestatechange', async (iceState) => {
+        switch (iceState) {
+            case 'new':
+            case 'connected':
+            case 'completed':
+            default:
+                break;
+            case 'disconnected':
+                console.log(`ICE was connected or completed but it has suddenly failed`);
+                const iceParameters = await transport.restartIce();
+                /**
+                 * iceParameters like this:
+                 * {
+                        iceParameters: {
+                            iceLite: true,
+                            password: 'gfes9ndv2r8dc8gv1c7pms2g3w5mhl1k',
+                            usernameFragment: '698mftj1sh6biyi5zutz8ucet2rwrf7a'
+                        }
+                    }
+                 */
+                // console.log({ iceParameters });
+                socket.emit('restartIce', { iceParameters })
+                break;
+        }
+    })
+
     if (maxIncomingBitrate) {
         try {
             await transport.setMaxIncomingBitrate(maxIncomingBitrate);
@@ -187,8 +267,8 @@ async function createWebRTCTransport() {
         params: {
             id: transport.id,
             iceParameters: transport.iceParameters,
-            iceCandidates: transport.iceCandidates,   // 见webrtc的ice candidate
-            dtlsParameters: transport.dtlsParameters // 安全相关
+            iceCandidates: transport.iceCandidates,
+            dtlsParameters: transport.dtlsParameters
         },
         error: null
     };
@@ -225,12 +305,19 @@ async function createConsumer(producer, rtpCapabilities, socketId) {
 
     console.log('successfully create consumer');
 
+    if (consumer.type === 'simulcast') {
+        // select the highest layers to be sent to the consuming endpoint
+        const spatialLayer = producer.rtpParameters.encodings.length - 1
+        console.log('selected spatialLayer', spatialLayer);
+        await consumer.setPreferredLayers({ spatialLayer })
+    }
+
     return {
         producerId: producer.id,
         id: consumer.id,
         kind: consumer.kind,
         rtpParameters: consumer.rtpParameters,
-        // type: consumer.type,
+        type: consumer.type,
         // producerPaused: consumer.producerPaused
     };
 }
@@ -264,16 +351,17 @@ async function createMediasoupWorkerAndRouter() {
 }
 
 
-const rooms = {}  //房间连接情况
+const rooms = {}
 function createSocketServer() {
     const app = express()
     app.get('/info', (_, res) => {
         res.json({
             server: 'mediasoup-server',
-            date: new Date().toLocaleString()
+            date: new Date().toLocaleString(),
+            rooms
         })
     })
-    const staticPath = path.join(__dirname, '..', '..', '..')
+    const staticPath = path.join(__dirname, '..')
     app.use(express.static(`${staticPath}`))
 
     const { sslKey, sslCrt, listenPort, listenIp } = config
@@ -321,7 +409,7 @@ function createSocketServer() {
         });
 
         socket.on("broadcast", data => {
-            socket.to(curRoom).broadcast.emit("broadcast", data);
+            socket.to(curRoom).emit("broadcast", data);
         });
 
         socket.on("disconnect", () => {
@@ -331,7 +419,7 @@ function createSocketServer() {
 
                 delete rooms[curRoom].occupants[socket.id];
                 const occupants = rooms[curRoom].occupants;
-                socket.to(curRoom).broadcast.emit("occupantsChanged", { occupants });
+                socket.to(curRoom).emit("occupantsChanged", { occupants });
 
                 if (Object.keys(occupants).length === 0) {
                     console.log("everybody left room");

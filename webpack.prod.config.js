@@ -2,7 +2,7 @@ module.exports = {
     entry  : './src/index.js',
     output : {
         path     : __dirname,
-        filename : './dist/networked-aframe.min.js'
+        filename : './dist/mediasoup-adapter.min.js'
     },
     mode: 'production',
     module : {

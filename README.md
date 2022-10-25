@@ -22,16 +22,13 @@ cd /path/to/naf-mediasoup-adapter
 ### install the dependencies of NAF
 npm install
 
-### install the dependencies of mediasoup-server. Installing mediasoup may take a while, just be patient.
-cd ./server/mediasoup-server && npm i
-
 ### make your own ssl certificate and key and place them under ssl directory
 openssl genrsa -out server.key 1024
 openssl req -new -key server.key -out server.csr
 openssl x509 -req -in server.csr -signkey server.key -out server.crt
 
 ### run the server
-npm run ms-server
+npm start
 
 ### open the browser to test (open multiple tabs to see each other)
 https://127.0.0.1:8181/examples
@@ -39,31 +36,27 @@ https://127.0.0.1:8181/examples
 
 #### Example
 
-I add a new `MediaSoupAdapter.js` and register it in the `AdapterFactory.js`, so just replace the adapter name in the `a-scene`.
+```
+ <!-- <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script> -->
+<script src="../dist/aframe.min.js"></script>
 
-```js
-// the same
-<script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.5.0/socket.io.slim.js">
-<script src="../dist/networked-aframe.js"></script>
+<script src="../dist/socketio_client_4.5.3.min.js"></script>
 
+<!-- <script src="https://unpkg.com/networked-aframe@^0.10.0/dist/networked-aframe.min.js" crossorigin="anonymous"></script> -->
+<script src="../dist/networked-aframe.min.js"></script>
 
-<!-- one more .js file you need: mediasoupclient.min.js -->
+// introduce it after networked-aframe.min.js is loaded
+<script src="../dist/mediasoup-adapter.js"></script>
+  
+<!-- mediasoup-client necessary -->
 <script src="../dist/mediasoupclient.min.js"></script>
+<script>
+  // make sure the mediasoup-client.min.js is loaded 
+	console.log('mediasoup-client-version', mediasoupClient.version);
+</script>
 
-
-// replace the adapter
-<a-scene networked-scene="
-      room: shooter;
-      debug: true;
-      adapter: mediasoup;
-      video: true;  // or false
-      audio: true; // or false
-"></a-scene>
-
-// insert networked-video/audio-source
-<a-plane color="#FFF" width="4" height="3" position="0 -2 -5" material="side: front" networked-video-source>
-</a-plane>
+<!-- make sure the websokcet connection is alive -->
+<script src="./js/periodic-full-syncs.js"></script>
 ```
 
 #### Mediasoup
