@@ -55,8 +55,22 @@ https://127.0.0.1:8181/examples
 	console.log('mediasoup-client-version', mediasoupClient.version);
 </script>
 
-<!-- make sure the websokcet connection is alive -->
-<script src="./js/periodic-full-syncs.js"></script>
+
+<a-scene networked-scene="
+      room: shooter;
+      debug: true;
+      adapter: mediasoup;
+      video: true;
+      audio: false;
+"></a-scene>
+
+<script>
+// You can disable/enable the simulcast like this
+document.querySelector('a-scene').addEventListener('adapter-ready', ({ detail: adapter }) => {
+      // disable/enable simulcast
+      adapter.simulcastMode = true
+    })
+</script>
 ```
 
 #### Mediasoup

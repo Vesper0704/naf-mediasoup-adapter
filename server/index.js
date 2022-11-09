@@ -212,6 +212,10 @@ async function registerEventsAndCallback(socket) {
         producerIdList.delete(id)
         consumerIdList.delete(id)
     })
+
+    socket.on('keep-alive', ()=>{
+        console.log(`keep-alive message from ${socket.id}`);
+    })
 }
 
 async function createWebRTCTransport(socket) {

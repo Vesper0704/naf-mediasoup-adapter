@@ -38,6 +38,9 @@ class MediasoupAdapter {
         this.pendingAudioRequest = {};
         this.pendingVideoRequest = {};
 
+        this.heartbeatInterval = 20 // in seconds
+        this.hearbeatTimer = null
+
         this.serverTimeRequests = 0;
         this.timeOffsets = [];
         this.avgTimeOffset = 0;
@@ -86,6 +89,15 @@ class MediasoupAdapter {
         this.messageListener = messageListener;
     }
 
+    setHeartbeatTimer(_heartbeatInterval) {
+        console.log(`reset heartbeatInterval from ${this.heartbeatInterval}s to ${_heartbeatInterval}s`);
+        this.heartbeatInterval = _heartbeatInterval
+        clearInterval(this.hearbeatTimer)
+        this.hearbeatTimer = setInterval(() => {
+            this.socket.emit('keep-alive')
+        }, _heartbeatInterval * 1000)
+    }
+
     connect() {
         const self = this;
 
@@ -124,6 +136,8 @@ class MediasoupAdapter {
 
                     self.connectSuccess(self.myId);
 
+                    self.setHeartbeatTimer(self.heartbeatInterval)
+
                     setTimeout(async () => {
                         await self.initialAndLoadDevice()
                         await self.initialProducerConsumerTransport()
@@ -131,11 +145,17 @@ class MediasoupAdapter {
                         // console.warn(self.device, self.producerTransport, self.consumerTransport);
 
                         let localStream = null;
-                        if (self.sendAudio || self.sendVideo) {
-                            localStream = await navigator.mediaDevices.getUserMedia({
-                                video: self.sendVideo,
-                                audio: self.sendAudio
-                            })
+                        try {
+                            if (self.sendAudio || self.sendVideo) {
+                                localStream = await navigator.mediaDevices.getUserMedia({
+                                    video: self.sendVideo,
+                                    audio: self.sendAudio
+                                })
+                            }
+                        } catch (e) {
+                            // maybe permission denied
+                            console.log(e)
+                            return
                         }
 
                         // store audio streams
@@ -323,11 +343,9 @@ class MediasoupAdapter {
         }
     }
 
-    getMediaStream(clientId, streamName = '', type = 'audio') {
+    getMediaStream(clientId, type = 'audio') {
         console.log(`getMediaStream ${type}`);
         const self = this;
-
-        console.log('adapter getMediaStream');
 
         if (type === 'audio') {
             if (this.audioStreams[clientId]) {
@@ -391,8 +409,7 @@ class MediasoupAdapter {
     async gatherExistingProducers() {
 
         const { producerList } = await this.socket.request('gatherProducers')
-        console.log(producerList);
-        if (!producerList.length) return console.log('no producers currently')
+        if (!producerList.length) return console.log('no producers currently', producerList)
 
         producerList.forEach(async ({ producerId, socketId }) => {
             await this.subscribeStream(producerId, socketId)
@@ -515,7 +532,7 @@ class MediasoupAdapter {
 
                     case 'failed':
                         self.producerTransport.close();
-                        console.log('SendTranport close');
+                        console.log('producerTransport connect fail and close');
                         break;
 
                     default:
@@ -553,7 +570,7 @@ class MediasoupAdapter {
                         console.log('consumerTransport connected');
                         break;
                     case 'failed':
-                        console.log('consumerTransport connect fail');
+                        console.log('consumerTransport connect fail and close');
                         self.consumerTransport.close()
                         break;
                     default:
