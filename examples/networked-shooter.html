@@ -1,0 +1,368 @@
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <title>Shooter Game</title>
+  <meta name="description" content="shooter game">
+
+  <!-- client-side communicate with signaling server -->
+  <script src="../dist/socketio_client_4.5.3.min.js"></script>
+
+  <!-- networked-aframe -->
+  <script src="../dist/aframe.min.js"></script>
+  <script src="../dist/networked-aframe.min.js"></script>
+
+  <script src="../dist/mediasoup-adapter.js"></script>
+  <!-- mediasoup-client necessary -->
+  <script src="../dist/mediasoupclient.min.js"></script>
+
+  <!-- environment and components for building the 3D scene -->
+  <script src="https://unpkg.com/aframe-environment-component@1.3.1/dist/aframe-environment-component.min.js"></script>
+  <script src="./js/spawn-in-circle.component.js"></script>
+  <script src="./js/gun.component.js"></script>
+  <script src="./js/forward.component.js"></script>
+  <script src="./js/remove-in-seconds.component.js"></script>
+  <script src="./js/random-color.component.js"></script>
+  <script src="./js/jump.component.js"></script>
+  <script src="./js/intersection-generate.js"></script>
+
+  <script>
+    var globalColor = '#000'
+    function onConnect(event) {
+      console.log(`%c连接成功 客户端id为${event?.detail?.clientId}`, 'color: blue');
+    }
+  </script>
+
+</head>
+
+<body>
+  <!-- a-scene加stats组件可以显示实时FPS/entity数量/requestAnimationFrame -->
+  <a-scene networked-scene="
+      app: shooting-game;
+      room: shooter;
+      debug: true;
+      adapter: mediasoup;
+      video: false
+    " loading-screen="dotsColor: #FFFFCC; backgroundColor: #996666" vr-mode-ui="enterVRButton: #EnterVRButton">
+
+    <a-assets>
+
+      <!-- !!不要删!!  -->
+      <!-- <img id="sky" src="" crossorigin="anonymous" /> -->
+      <img id="bupt" src="./img/bupt.png" crossorigin="anonymous" />
+      <img id="hauwei" src="./img/huawei.png" crossorigin="anonymous" />
+
+      <!-- Templates -->
+      <!-- robot -->
+      <template id="robot-template">
+        <a-entity class="robot">
+
+          <!-- 躯干 -->
+          <a-box class="robot-body" width="1.5" height="2" depth="1"></a-box>
+
+          <!-- 允许玩家视频 -->
+          <a-plane color="#FFF" width="5" height="3" position="0 5 0" material="side: back" networked-video-source>
+          </a-plane>
+          <!-- <a-plane color="#FFF" width="5" height="3" position="0 5 0" material="side: back" networked-video-source>
+          </a-plane> -->
+
+          <!-- 头 -->
+          <a-sphere class="head" radius="0.6" position="0 1.6 0" material="color: #FFCCCC"></a-sphere>
+
+          <!-- 俩胳膊 -->
+          <a-box id="left-arm" width="0.5" height="1" depth="0.6" position="-1 0.5 0" color="gray">
+          </a-box>
+          <a-box id="right-arm" width="0.5" height="1" depth="0.6" position="1 0.5 0" color="gray">
+          </a-box>
+
+          <!-- 俩腿 -->
+          <a-sphere id="left-foot" radius="0.3" position="-0.5 -1.3 0" color="gray"></a-sphere>
+          <a-sphere id="right-foot" radius="0.3" position="0.5 -1.3 0" color="gray"></a-sphere>
+
+          <!-- 武器 -->
+          <a-box class="gun" position="-0.9 0.1 -0.6" width="0.3" height="0.3" depth="1.2"></a-box>
+          <!-- <a-entity class="gun-tip" position="0.51 -0.10 -0.64"></a-entity> -->
+
+        </a-entity>
+      </template>
+
+      <!-- Bullet -->
+      <template id="bullet-template">
+        <a-entity>
+          <a-sphere class="bullet" scale="0.1 0.1 0.1" color="#AAA"></a-sphere>
+        </a-entity>
+      </template>
+
+      <!-- Voxel -->
+      <template id="voxel-template">
+        <a-entity>
+          <a-box color="#FF3399" scale="1.5 1.5 1.5" class="voxel"></a-box>
+        </a-entity>
+      </template>
+
+      <!-- /Templates -->
+    </a-assets>
+
+    <!-- 射手 -->
+    <a-entity id="player" networked="template: #robot-template;attachTemplateToLocal: false;" camera="fov: 90"
+      position="0 1.6 -1" wasd-controls="" look-controls gun="bulletTemplate: #bullet-template; isAutomatic: false"
+      spawn-in-circle="radius: 5">
+
+      <!-- scale和size最好相同 -->
+      <a-cursor intersection-generate="event: mouseup; voxelTemplate: #voxel-template; size: 1.5; cooldown: 6">
+      </a-cursor>
+
+      <a-box class="robot-body" random-color visible="false"></a-box>
+      <a-box class="gun" material="color: #AAA" visible="true"></a-box>
+    </a-entity>
+
+
+    <!-- 环境 -->
+    <a-entity environment="preset: starry; fog: 0.2; dressingAmount: 1000"></a-entity>
+    <a-entity light="color: #ccccff; intensity: 1; type: ambient;" visible=""></a-entity>
+    <a-entity light="color: #ffaaff; intensity: 1.5" position="5 5 5"></a-entity>
+
+    <!-- 俯瞰 -->
+    <!-- <a-entity id="rig" position="-10 10 20">
+      <a-camera id="camera"></a-camera>
+    </a-entity> -->
+
+    <!-- 进入VR模式 -->
+    <a id="EnterVRButton" href="#">Shooting Game in VR Mode</a>
+
+
+    <!-- 是否开启视频 -->
+    <!-- <div class="camera">
+      <button id="cameraBtn" type="button" class="button">关闭视频交流</button>
+    </div> -->
+
+
+    <!-- logo -->
+    <a-box width="3" depth="3" src="#bupt" height="3" position="-10 12 -20"
+      animation="property: rotation; to: 0 360 360; dur: 15000; loop:true; easing: linear" color="#888">
+    </a-box>
+    <a-box width="3" depth="3" src="#hauwei" height="3" position="10 12 -20"
+      animation="property: rotation; to: 0 360 360; dur: 15000; loop:true; easing: linear" color="#FFF">
+    </a-box>
+  </a-scene>
+
+  <style>
+
+  </style>
+  <script src="./js/prevent-menu.js"></script>
+  <script>
+    // document.querySelector('#sky').src = `https://i.imgur.com/WqlqEkq.jpg?temp=${+new Date()}`
+    (document.querySelector('a-scene')).addEventListener('adapter-ready', ({ detail: adapter }) => {
+      // disable/enable simulcast
+      adapter.simulcastMode = false
+      
+      // set heartbeat interval to xx secs
+      // adapter.setHeartbeatTimer(100)
+    })
+    /**
+     * 切换视频功能
+     */
+    // let cameraEnabled = true
+    // let cameraBtn = document.querySelector('#cameraBtn')
+    // function customOnConnect() {
+    //   console.log('%c已经连接', 'color: #F00');
+    //   let adapter = NAF.connection.adapter
+    //   console.log(`adapter`, adapter);
+    //   cameraBtn.onclick = () => {
+    //     // toggle视频功能
+    //     adapter.enableCamera(!cameraEnabled)
+    //     cameraEnabled = !cameraEnabled
+
+    //     cameraBtn.textContent = cameraEnabled ? '关闭视频交流' : '启用视频交流'
+    //   }
+    // }
+  </script>
+  <script>
+    // 判断是否是vip玩家 增加子弹射速 设置为自动连发
+    /**
+     * -1: 无事发生
+     * 1: 增加射速
+     * 2: 视野变宽
+     * 3: 1+2
+     **/
+    function isVipPlayer() {
+      let url = location.search
+      if (url.indexOf('?') === -1) {
+        return -1
+      }
+      let query = location.search.split('?')[1]
+      let regex = /isVip=(\d{1})/
+      let res = query.match(regex)
+      if (res == null) return -1
+      if (parseInt(res[1]) !== NaN) {
+        return parseInt(res[1])
+      }
+      return -1
+    }
+
+    let player = document.querySelector('#player')
+
+    const upgradeGun = (entity) => {
+      console.log('%c升级武器', 'color: blue')
+      entity.setAttribute('gun', { isAutomatic: true })
+
+    }
+
+    const broadenSight = (entity, fov = 120) => {
+      console.log('%c升级视野', 'color: blue')
+      entity.setAttribute('camera', 'fov', fov)
+    }
+
+    const speedUp = (entity, accelerate = 80) => {
+      console.log('%c升级移速', 'color: blue')
+      entity.setAttribute('wasd-controls', 'acceleration', accelerate)
+
+    }
+
+    (function (entity) {
+      switch (isVipPlayer()) {
+        case -1:
+          return console.log('普通玩家');
+          break;
+        case 1:
+          console.log('v1玩家 视野')
+          broadenSight(entity)
+          break;
+        case 2:
+          console.log('v2玩家 视野+移速')
+          broadenSight(entity, 120)
+          speedUp(entity, 80)
+          break;
+        case 3:
+          console.log('v3玩家 视野+射速')
+          broadenSight(entity, 120)
+          upgradeGun(entity)
+          break;
+        case 4:
+          console.log('v4玩家 视野+射速+移速')
+          broadenSight(entity, 120)
+          upgradeGun(entity)
+          speedUp(entity, 100)
+          break;
+        default:
+          return console.log('未识别玩家等级');
+      }
+
+    })(player)
+
+    // 组件数据同步到dom 一般为了性能 不会同步
+    // player.flushToDom()
+    // document.querySelector('a-entity#player').flushToDOM();
+
+
+  </script>
+
+  <script>
+    var isMobile = AFRAME.utils.device.isMobile();
+    if (isMobile) {
+      console.log('检测到移动设备');
+    }
+
+
+  </script>
+
+  <script>
+    // 自定义事件 jump
+    // (function () {
+    //   let player = document.querySelector('#player')
+    //   let isJumping = false
+    //   // throttle
+    //   document.body.addEventListener('keyup', e => {
+    //     // console.log('jump');
+    //     if (isJumping) {
+    //       return
+    //     }
+    //     let duration = 200
+    //     // 
+    //     if (e.keyCode === 32) {
+    //       isJumping = true
+    //       player.setAttribute('jump', { height: 1.5, duration })
+    //       setTimeout(() => {
+    //         player.removeAttribute('jump')
+    //         isJumping = false
+    //       }, 200)
+    //     }
+    //   })
+    // })()
+  </script>
+
+  <script>
+    // Define custom schema for syncing avatar color, set by random-color
+    console.log('当前联网的schema', NAF.schemas);
+    NAF.schemas.add({
+      template: '#robot-template',
+      components: [
+        'position',
+        'rotation',
+        {
+          selector: '.robot-body',
+          component: 'material',
+          property: 'color'
+        },
+      ]
+    });
+
+    // 同步voxel的颜色
+    NAF.schemas.add({
+      template: '#voxel-template',
+      components: [
+        'position',
+        'rotation',
+        'material',
+        {
+          selector: '.voxel',
+          component: 'material',
+          property: 'color'
+        }
+      ]
+    })
+
+  </script>
+
+  <script>
+    // TODO: 同步颜色 有点问题 官方文档不推荐在这里操作Dom
+    let gun = player.querySelector('a-box.gun')
+    player.querySelector('a-box.robot-body').addEventListener('setColor', (ev) => {
+      console.log('成功设置颜色', ev.detail);
+      // console.log('设置颜色', gun);
+    })
+  </script>
+</body>
+
+<style>
+  /* 进入VR模式 */
+  #EnterVRButton {
+    position: fixed;
+    bottom: 50px;
+    right: 50px;
+    z-index: 999;
+    font-family: 'Comic Sans MS';
+    color: rgba(53, 237, 28, 0.892);
+    font-size: 24px;
+    user-select: none;
+  }
+
+  .camera {
+    position: fixed;
+    display: none;
+    bottom: 3%;
+    left: 3%;
+    z-index: 999;
+  }
+
+  .button {
+    cursor: pointer;
+    background: #fff;
+    height: 40px;
+    width: 130px;
+    border-radius: 30px;
+    margin-right: 10px;
+  }
+</style>
+
+</html>
