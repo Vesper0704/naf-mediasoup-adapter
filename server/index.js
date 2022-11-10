@@ -166,7 +166,7 @@ async function registerEventsAndCallback(socket) {
         if (consumer) {
             console.log('consumerType ', consumer.type);
             callback(consumer)
-        }else {
+        } else {
             callback(null)
         }
     })
@@ -213,7 +213,7 @@ async function registerEventsAndCallback(socket) {
         consumerIdList.delete(id)
     })
 
-    socket.on('keep-alive', ()=>{
+    socket.on('keep-alive', () => {
         console.log(`keep-alive message from ${socket.id}`);
     })
 }
@@ -376,7 +376,11 @@ function createSocketServer() {
     const httpsServer = https.createServer(options, app)
 
     httpsServer.listen(listenPort, listenIp, () => {
-        console.log(`mediasoup server listening at https://127.0.0.1:${listenPort} ...`);
+        console.log(`mediasoup server listening at https://127.0.0.1:${listenPort} ... 
+examples can be found at: 
+https://127.0.0.1:${listenPort}/examples 
+and 
+https://127.0.0.1:${listenPort}/examples/networked-shooter.html`);
     })
 
     socketServer = socketIO(httpsServer)
