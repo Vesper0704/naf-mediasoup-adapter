@@ -3,15 +3,15 @@
 
 <head>
   <meta charset="utf-8" />
-  <title>Shooter Example — Networked-Aframe</title>
-  <meta name="description" content="Shooter Example — Networked-Aframe" />
+  <title>Mediasoup Adapter Demo</title>
+  <meta name="description" content="Mediasoup Adapter Demo" />
 
   <!-- <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script> -->
   <script src="../dist/aframe.min.js"></script>
 
-  <script src="https://cdn.socket.io/4.5.3/socket.io.min.js"
+  <!-- <script src="https://cdn.socket.io/4.5.3/socket.io.min.js"
     integrity="sha384-WPFUvHkB1aHA5TDSZi6xtDgkF0wXJcIIxXhC6h8OT8EH3fC5PWro5pWJ1THjcfEi"
-    crossorigin="anonymous"></script>
+    crossorigin="anonymous"></script> -->
   <script src="../dist/socketio_client_4.5.3.min.js"></script>
 
   <!-- <script src="https://unpkg.com/networked-aframe@^0.10.0/dist/networked-aframe.min.js"
@@ -25,22 +25,50 @@
     console.log('mediasoup-client-version', mediasoupClient.version);
   </script>
 
-  <!-- make sure the websokcet connection is alive -->
+
   <script src="https://unpkg.com/aframe-randomizer-components@^3.0.1/dist/aframe-randomizer-components.min.js"></script>
   <script src="https://unpkg.com/aframe-environment-component@1.3.1/dist/aframe-environment-component.min.js"></script>
+
+  <style>
+    .control {
+      position: absolute;
+      width: 300px;
+      height: 50px;
+      left: 50px;
+      bottom: 50px;
+      background: #4fc3c3;
+      border: 1px solid #232322;
+      border-radius: 10px;
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      z-index: 99
+    }
+
+    #videoBtn,
+    #audioBtn {
+      width: 50%;
+      height: 80%;
+      font-size: 20px;
+      font-family: 'Comic Snas MS';
+      border: 1px solid #232322;
+      border-radius: 10px;
+    }
+  </style>
+
+
 </head>
 
 <body>
   <a-scene networked-scene="
-      room: shooter;
+      room: default;
       debug: true;
       adapter: mediasoup;
       video: true;
       audio: true;
     ">
     <a-assets timeout="1000">
-      <!-- Templates -->
-      <img id="sky" src="" crossorigin="anonymous" />
+      <img id="sky" crossorigin="anonymous">
       <!-- Avatar -->
       <template id="avatar-template">
         <a-entity class="avatar">
@@ -59,33 +87,35 @@
               <a-sphere class="pupil" color="#000" position="0 0 -1" scale="0.2 0.2 0.2"></a-sphere>
             </a-sphere>
           </a-entity>
-          <a-entity class="gun">
-            <a-box position="0.51 -0.13 -0.29" scale="0.19 0.23 0.67" color="#000"></a-box>
-            <a-entity class="gun-tip" position="0.51 -0.10 -0.64"></a-entity>
-          </a-entity>
         </a-entity>
       </template>
 
-      <!-- /Templates -->
     </a-assets>
 
-    <a-entity id="rig">
-      <a-entity id="player" networked="template:#avatar-template;attachTemplateToLocal:true" camera position="0 4 0"
-        wasd-controls look-controls>
-        <a-sphere class="head" visible="false" random-color></a-sphere>
-      </a-entity>
 
+    <a-entity id="rig">
+      <a-entity id="player" networked="template:#avatar-template;attachTemplateToLocal:false" camera position="0 4 0"
+        wasd-controls look-controls>
+        <a-sphere class="head" visible="true" random-color></a-sphere>
+      </a-entity>
     </a-entity>
+
+    <div class="control">
+      <button id="videoBtn" onClick="toggleStream('video')" disabled>stop video</button>
+      <button id="audioBtn" onClick="toggleStream('audio')" disabled>stop audio</button>
+    </div>
 
     <a-entity environment="preset:arches"></a-entity>
     <a-entity light="type:ambient;intensity:0.5"></a-entity>
   </a-scene>
 
   <script>
+    document.querySelector('#sky').src = `https://cdn.glitch.com/e6225ccd-c32e-4cf8-b039-e78814a8cb78%2Fbg-3.jpg?random=${+new Date()}`
     // Called by Networked-Aframe when connected to server
     function onConnect() {
       console.log('onConnect', new Date());
     }
+
     NAF.schemas.add({
       template: '#avatar-template',
       components: [
@@ -98,16 +128,36 @@
         }
       ]
     });
-    let socket = null;
-    (document.querySelector('a-scene')).addEventListener('adapter-ready', ({ detail: adapter }) => {
-      // disable/enable simulcast
-      adapter.simulcastMode = false
-      
-      // set heartbeat interval to xx secs
-      // adapter.setHeartbeatTimer(100)
+
+    function toggleStream(type) {
+      const targetBtn = type === 'video' ? videoBtn : audioBtn
+      const msg = targetBtn.textContent
+      if (msg.includes('stop')) {
+        const { e, msg, length } = NAF.connection.adapter.pauseStream(type)
+        // console.log({ e, msg, length });
+        if (e) return
+        if (!length) return console.log(`no ${type} producers now`);
+        targetBtn.textContent = `resume ${type}`
+      } else {
+        const { e, msg, length } = NAF.connection.adapter.resumeStream(type)
+        if (e) return
+        if (!length) return console.log(`no ${type} producers now`);
+        targetBtn.textContent = `stop ${type}`
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      document.querySelector('a-scene').addEventListener('adapter-ready', ({ detail: adapter }) => {
+
+        // disable/enable simulcast
+        adapter.simulcastMode = false
+
+        // set heartbeat interval to xx secs
+        adapter.setHeartbeatTimer(30)
+
+        videoBtn.disabled = audioBtn.disabled = false
+      })
     })
-
-
 
   </script>
 </body>

@@ -30,13 +30,13 @@ module.exports = {
           [
             {
               kind: 'audio',
-              mimeType: 'audio/opus', //opus音频
+              mimeType: 'audio/opus', //opus for audio
               clockRate: 48000,
               channels: 2
             },
             {
               kind: 'video',
-              mimeType: 'video/VP8', //vp8视频
+              mimeType: 'video/VP8', //vp8 for video
               clockRate: 90000,
               parameters:
                 {
@@ -55,7 +55,7 @@ module.exports = {
         ],
         maxIncomingBitrate: 1500000,
         initialAvailableOutgoingBitrate: 1000000,
-        // 合理配置 出口带宽一般都会小于入口带宽
+        // reasonable because the outgoing bandwidth is usually less than incoming bandwidth
       }
     }
   };

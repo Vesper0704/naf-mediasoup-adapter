@@ -31,33 +31,30 @@ openssl x509 -req -in server.csr -signkey server.key -out server.crt
 npm start
 
 ### open the browser to test (open multiple tabs to see each other)
-https://127.0.0.1:8181/examples
+https://127.0.0.1:8185/examples
 ```
 
 #### Example
 
-```
- <!-- <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script> -->
+```html
+<!-- <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script> -->
 <script src="../dist/aframe.min.js"></script>
 
+<!-- <script src="https://cdn.socket.io/4.5.3/socket.io.min.js"
+  integrity="sha384-WPFUvHkB1aHA5TDSZi6xtDgkF0wXJcIIxXhC6h8OT8EH3fC5PWro5pWJ1THjcfEi"
+  crossorigin="anonymous"></script> -->
 <script src="../dist/socketio_client_4.5.3.min.js"></script>
 
-<!-- <script src="https://unpkg.com/networked-aframe@^0.10.0/dist/networked-aframe.min.js" crossorigin="anonymous"></script> -->
+<!-- <script src="https://unpkg.com/networked-aframe@^0.10.0/dist/networked-aframe.min.js"
+  crossorigin="anonymous"></script> -->
 <script src="../dist/networked-aframe.min.js"></script>
 
-// introduce it after networked-aframe.min.js is loaded
 <script src="../dist/mediasoup-adapter.js"></script>
-  
 <!-- mediasoup-client necessary -->
 <script src="../dist/mediasoupclient.min.js"></script>
-<script>
-  // make sure the mediasoup-client.min.js is loaded 
-	console.log('mediasoup-client-version', mediasoupClient.version);
-</script>
-
 
 <a-scene networked-scene="
-      room: shooter;
+      room: default;
       debug: true;
       adapter: mediasoup;
       video: true;
@@ -65,17 +62,27 @@ https://127.0.0.1:8181/examples
 "></a-scene>
 
 <script>
-// You can disable/enable the simulcast like this
-document.querySelector('a-scene').addEventListener('adapter-ready', ({ detail: adapter }) => {
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelector('a-scene').addEventListener('adapter-ready', ({ detail: adapter }) => {
       // disable/enable simulcast
-      adapter.simulcastMode = true
+      adapter.simulcastMode = false
+
+      // set heartbeat interval to 30 secs
+      adapter.setHeartbeatTimer(30)
     })
+  })
+  
+ // you can toggle video/audio streams like this
+NAF.connection.adapter.resumeStream('video')
+NAF.connection.adapter.pauseStream('video')
 </script>
 ```
 
 #### Mediasoup
 
-Any questions and details on the mediasoup can refer to [mediasoup documentation](https://mediasoup.org/documentation/v3/).
+Any questions and details on the mediasoup refer to [mediasoup documentation](https://mediasoup.org/documentation/v3/).
+
+Installation can be found in https://mediasoup.org/documentation/v3/mediasoup/installation/
 
 #### Make it better
 

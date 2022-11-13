@@ -169,7 +169,7 @@ class MediasoupAdapter {
                                 const track = localStream.getAudioTracks()[0]
                                 const params = { track }
                                 const producer = await self.producerTransport.produce(params)
-                                // self.audioProducer[producer.id] = producer // producer.kind === 'audio'
+                                self.audioProducer[producer.id] = producer // producer.kind === 'audio'
                             } catch (e) {
                                 console.error('fail to produce audio stream', e);
                             }
@@ -186,7 +186,7 @@ class MediasoupAdapter {
                                 const track = localStream.getVideoTracks()[0]
                                 const params = self.simulcastMode ? { track, ...self.simulcastConfig } : { track }
                                 const producer = await self.producerTransport.produce(params)
-                                // self.videoProducer[producer.id] = producer // producer.kind === 'video'
+                                self.videoProducer[producer.id] = producer // producer.kind === 'video'
                             } catch (e) {
                                 console.log('fail to produce video stream', e);
                             }
@@ -367,6 +367,38 @@ class MediasoupAdapter {
                     self.pendingVideoRequest[clientId] = resolve;
                 });
             }
+        }
+    }
+
+    pauseStream(type = 'video') {
+        try {
+            const producers = Object.values(type === 'video' ? this.videoProducer : this.audioProducer)
+            const { length } = producers
+            if (!producers || !length) return { e: null, msg: `no ${type} producers now`, length }
+            producers.forEach(producer => {
+                console.log(producer);
+                producer.pause()
+            })
+            return { e: null, msg: 'pause stream success', length }
+        } catch (e) {
+            console.log('pauseStream error', e);
+            return { e }
+        }
+    }
+
+    resumeStream(type = 'video') {
+        try {
+            const producers = Object.values(type === 'video' ? this.videoProducer : this.audioProducer)
+            const { length } = producers
+            if (!producers || !length) return { e: null, msg: `no ${type} producers now`, length }
+            producers.forEach(producer => {
+                console.log(producer);
+                producer.resume()
+            })
+            return { e: null, msg: 'resume stream success', length }
+        } catch (e) {
+            console.log('resumeStream error', e);
+            return { e }
         }
     }
 
