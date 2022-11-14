@@ -75,8 +75,81 @@ document.addEventListener('DOMContentLoaded', () => {
  // you can toggle video/audio streams like this
 NAF.connection.adapter.resumeStream('video')
 NAF.connection.adapter.pauseStream('video')
+  
+// support video(webcam), audio(microphone) and screenshare(screen sharing)
+ function toggleStream(target, type) {
+
+    let stream = type === 'video' ? webcamStream : type === 'audio' ? microphoneStream : screenshareStream
+    if (target.textContent.includes('enable')) {
+      try {
+        // enable/resume stream
+        if (!stream) {
+          // first time
+          switch (type) {
+            case 'video':
+              navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+                .then(async (_stream) => {
+                webcamStream = _stream
+                await NAF.connection.adapter.addLocalMediaStream(_stream, type)
+              })
+                .catch(e => {
+                console.log(e);
+              })
+              break;
+            case 'audio':
+              navigator.mediaDevices.getUserMedia({ video: false, audio: true })
+                .then(async (_stream) => {
+                microphoneStream = _stream
+                await NAF.connection.adapter.addLocalMediaStream(_stream, type)
+              })
+                .catch(e => {
+                console.log(e);
+              })
+              break;
+            case 'screenshare':
+              navigator.mediaDevices.getDisplayMedia()
+                .then(async (_stream) => {
+                screenshareStream = _stream
+                await NAF.connection.adapter.addLocalMediaStream(_stream, type)
+              })
+                .catch(e => {
+                console.log(e);
+              })
+              break;
+            default:
+              console.log(`unknown mediastream type: ${type}`)
+              break;
+          }
+        } else {
+          const { e, msg, length } = NAF.connection.adapter.resumeStream(type)
+          if (e) return
+          if (!length) return console.log(`no ${type} producers now`);
+        }
+      } catch (e) {
+        console.log(`error occured when enabing stream...`, e);
+      }
+      target.textContent = `disable ${type}`
+
+
+    } else {
+      // disable/pause stream
+      if (!stream) return console.log(`no ${type} stream yet`)
+
+      const { e, msg, length } = NAF.connection.adapter.pauseStream(type)
+      if (e) return
+      if (!length) return console.log(`no ${type} producers now`);
+      target.textContent = `enable ${type}`
+    }
+  }
+
 </script>
 ```
+
+#### Demo
+
+- Enable screen sharing and webcam at the same time.
+
+![img](./img/demo.png)
 
 #### Mediasoup
 
