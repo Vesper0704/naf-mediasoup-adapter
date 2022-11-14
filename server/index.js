@@ -59,7 +59,7 @@ async function registerEventsAndCallback(socket) {
     })
 
     socket.on('produce', async (data, callback) => {
-        const { kind, rtpParameters } = data
+        const { kind, rtpParameters, appData } = data
         console.log('produce', kind);
         const producerTransport = producerTransportMap.get(socket.id)
         if (!producerTransport) return console.log('fail to get ProducerTransport')
@@ -68,6 +68,7 @@ async function registerEventsAndCallback(socket) {
             kind,
             rtpParameters
         })
+        producer.streamName = appData.streamName
 
         let prevList = producerIdList.get(socket.id)
         if (!prevList) prevList = []
@@ -113,7 +114,7 @@ async function registerEventsAndCallback(socket) {
             callback(null)
             return console.log('no corresponding producer found')
         }
-        console.log('producerType ', producer.type);
+        console.log('producerType ', producer.type, producer.streamName);
         /**
          * producerRtpParameters  {
                 codecs: [
@@ -166,7 +167,7 @@ async function registerEventsAndCallback(socket) {
         if (consumer) {
             console.log('consumerType ', consumer.type);
             callback(consumer)
-        }else {
+        } else {
             callback(null)
         }
     })
@@ -213,7 +214,7 @@ async function registerEventsAndCallback(socket) {
         consumerIdList.delete(id)
     })
 
-    socket.on('keep-alive', ()=>{
+    socket.on('keep-alive', () => {
         console.log(`keep-alive message from ${socket.id}`);
     })
 }
@@ -322,6 +323,7 @@ async function createConsumer(producer, rtpCapabilities, socketId) {
         kind: consumer.kind,
         rtpParameters: consumer.rtpParameters,
         type: consumer.type,
+        streamName: producer.streamName
         // producerPaused: consumer.producerPaused
     };
 }
