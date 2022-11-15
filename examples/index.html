@@ -140,44 +140,27 @@
       ]
     });
 
-    function toggleStream(target, type) {
+    async function toggleStream(target, type) {
 
       let stream = type === 'video' ? webcamStream : type === 'audio' ? microphoneStream : screenshareStream
       if (target.textContent.includes('enable')) {
+        let flag = true
         try {
           // enable/resume stream
           if (!stream) {
             // first time
             switch (type) {
               case 'video':
-                navigator.mediaDevices.getUserMedia({ video: true, audio: false })
-                  .then(async (_stream) => {
-                    webcamStream = _stream
-                    await NAF.connection.adapter.addLocalMediaStream(_stream, type)
-                  })
-                  .catch(e => {
-                    console.log(e);
-                  })
+                webcamStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+                await NAF.connection.adapter.addLocalMediaStream(webcamStream, type)
                 break;
               case 'audio':
-                navigator.mediaDevices.getUserMedia({ video: false, audio: true })
-                  .then(async (_stream) => {
-                    microphoneStream = _stream
-                    await NAF.connection.adapter.addLocalMediaStream(_stream, type)
-                  })
-                  .catch(e => {
-                    console.log(e);
-                  })
+                microphoneStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true })
+                await NAF.connection.adapter.addLocalMediaStream(microphoneStream, type)
                 break;
               case 'screenshare':
-                navigator.mediaDevices.getDisplayMedia()
-                  .then(async (_stream) => {
-                    screenshareStream = _stream
-                    await NAF.connection.adapter.addLocalMediaStream(_stream, type)
-                  })
-                  .catch(e => {
-                    console.log(e);
-                  })
+                screenshareStream = await navigator.mediaDevices.getDisplayMedia()
+                await NAF.connection.adapter.addLocalMediaStream(screenshareStream, type)
                 break;
               default:
                 console.log(`unknown mediastream type: ${type}`)
@@ -189,8 +172,9 @@
             if (!length) return console.log(`no ${type} producers now`);
           }
         } catch (e) {
-          console.log(`error occured when enabing stream...`, e);
+          return console.log(`error occured when enabing stream...`, e);
         }
+
         target.textContent = `disable ${type}`
 
 
