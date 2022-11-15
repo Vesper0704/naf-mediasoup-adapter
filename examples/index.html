@@ -144,7 +144,6 @@
 
       let stream = type === 'video' ? webcamStream : type === 'audio' ? microphoneStream : screenshareStream
       if (target.textContent.includes('enable')) {
-        let flag = true
         try {
           // enable/resume stream
           if (!stream) {
@@ -163,7 +162,7 @@
                 await NAF.connection.adapter.addLocalMediaStream(screenshareStream, type)
                 break;
               default:
-                console.log(`unknown mediastream type: ${type}`)
+                return console.log(`unknown mediastream type: ${type}`)
                 break;
             }
           } else {
