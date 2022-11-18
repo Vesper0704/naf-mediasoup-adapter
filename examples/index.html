@@ -161,17 +161,13 @@
       }
     }
 
-    // document.addEventListener('DOMContentLoaded', () => {
-      document.querySelector('a-scene').addEventListener('adapter-ready', ({ detail: adapter }) => {
-        // disable/enable simulcast
-        adapter.simulcastMode = false
+    document.querySelector('a-scene').addEventListener('adapter-ready', ({ detail: adapter }) => {
+      adapter.simulcastMode = false
 
-        // set heartbeat interval to xx secs
-        adapter.setHeartbeatTimer(30)
+      adapter.setHeartbeatTimer(30); // seconds
 
-        videoBtn.disabled = audioBtn.disabled = false
-      })
-    // })
+      videoBtn.disabled = audioBtn.disabled = false
+    })
 
   </script>
 </body>
