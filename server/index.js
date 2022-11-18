@@ -3,7 +3,8 @@
 const mediasoup = require('mediasoup')
 const socketIO = require('socket.io')
 const express = require('express')
-const https = require('https')
+// const https = require('https')
+const http = require("http");
 const fs = require('fs')
 const path = require('path')
 const config = require('./config')
@@ -166,7 +167,7 @@ async function registerEventsAndCallback(socket) {
         if (consumer) {
             console.log('consumerType ', consumer.type);
             callback(consumer)
-        }else {
+        } else {
             callback(null)
         }
     })
@@ -367,19 +368,23 @@ function createSocketServer() {
     })
     const staticPath = path.join(__dirname, '..')
     app.use(express.static(`${staticPath}`))
+  
+    // Serve the files from the examples folder
+    app.use(express.static(path.resolve(__dirname, "..", "examples")));
 
     const { sslKey, sslCrt, listenPort, listenIp } = config
     const options = {
         key: fs.readFileSync(sslKey),
         cert: fs.readFileSync(sslCrt),
     }
-    const httpsServer = https.createServer(options, app)
+    // const httpsServer = https.createServer(options, app)
+    const httpServer = http.createServer(app)
 
-    httpsServer.listen(listenPort, listenIp, () => {
-        console.log(`mediasoup server listening at https://127.0.0.1:${listenPort} ...`);
+    httpServer.listen(listenPort, listenIp, () => {
+        console.log(`mediasoup server listening at localhost:${listenPort} ...`);
     })
 
-    socketServer = socketIO(httpsServer)
+    socketServer = socketIO(httpServer)
 
     socketServer.on('connection', socket => {
 

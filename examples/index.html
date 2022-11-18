@@ -68,16 +68,13 @@
       audio: true;
     ">
     <a-assets timeout="1000">
+
       <img id="sky" crossorigin="anonymous">
+      
       <!-- Avatar -->
       <template id="avatar-template">
-        <a-entity class="avatar">
-          <a-plane color="#FFF" width="4" height="3" position="0 3 0" material="side: back" networked-video-source>
-          </a-plane>
-          <a-plane color="#FFF" width="4" height="3" rotation="0 0 0" position="0 5 0" material="side: front"
-            networked-audio-source>
-          </a-plane>
-          </a-plane>
+        <a-entity class="avatar" networked-audio-source>
+          <a-plane networked-video-source color="#FFF" width="4" height="3" position="0 3 0" material="side: back"></a-plane>
           <a-sphere class="head" scale="0.45 0.5 0.4"></a-sphere>
           <a-entity class="face" position="0 0.05 0">
             <a-sphere class="eye" color="#efefef" position="0.16 0.1 -0.35" scale="0.12 0.12 0.12">
@@ -101,8 +98,8 @@
     </a-entity>
 
     <div class="control">
-      <button id="videoBtn" onClick="toggleStream('video')" disabled>stop video</button>
-      <button id="audioBtn" onClick="toggleStream('audio')" disabled>stop audio</button>
+      <button id="videoBtn" onclick="toggleStream('video')" disabled>stop video</button>
+      <button id="audioBtn" onclick="toggleStream('audio')" disabled>stop audio</button>
     </div>
 
     <a-entity environment="preset:arches"></a-entity>
@@ -111,6 +108,7 @@
 
   <script>
     document.querySelector('#sky').src = `https://cdn.glitch.com/e6225ccd-c32e-4cf8-b039-e78814a8cb78%2Fbg-3.jpg?random=${+new Date()}`
+    
     // Called by Networked-Aframe when connected to server
     function onConnect() {
       console.log('onConnect', new Date());
@@ -130,25 +128,41 @@
     });
 
     function toggleStream(type) {
-      const targetBtn = type === 'video' ? videoBtn : audioBtn
-      const msg = targetBtn.textContent
+      const targetBtn = type === 'video' ? videoBtn : audioBtn;
+      const msg = targetBtn.textContent;
       if (msg.includes('stop')) {
-        const { e, msg, length } = NAF.connection.adapter.pauseStream(type)
+        const { e, msg, length } = NAF.connection.adapter.pauseStream(type);
         // console.log({ e, msg, length });
-        if (e) return
-        if (!length) return console.log(`no ${type} producers now`);
-        targetBtn.textContent = `resume ${type}`
+        if (e) {
+          console.error(e);
+          return
+        }
+        else if (!length) {
+          console.log(`no ${type} producers now`);
+          return
+        }
+        else {
+          targetBtn.textContent = `resume ${type}`;
+        }
       } else {
-        const { e, msg, length } = NAF.connection.adapter.resumeStream(type)
-        if (e) return
-        if (!length) return console.log(`no ${type} producers now`);
-        targetBtn.textContent = `stop ${type}`
+        const { e, msg, length } = NAF.connection.adapter.resumeStream(type);
+        if (e) {
+          console.error(e);
+          return
+        }
+        else if (!length) {
+          console.log(`no ${type} producers now`);
+          return
+        }
+        else {
+          targetBtn.textContent = `stop ${type}`;
+        }
       }
     }
 
-    document.addEventListener('DOMContentLoaded', () => {
+    // document.addEventListener('DOMContentLoaded', () => {
+      console.log(document.body)
       document.querySelector('a-scene').addEventListener('adapter-ready', ({ detail: adapter }) => {
-
         // disable/enable simulcast
         adapter.simulcastMode = false
 
@@ -157,7 +171,7 @@
 
         videoBtn.disabled = audioBtn.disabled = false
       })
-    })
+    // })
 
   </script>
 </body>
