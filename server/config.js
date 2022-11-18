@@ -1,6 +1,7 @@
 module.exports = {
     listenIp: '0.0.0.0',
-    listenPort: 8185,
+    // listenPort: 8185,
+    listenPort: process.env.PORT,
     sslCrt: `${__dirname}/ssl/server.crt`,
     sslKey: `${__dirname}/ssl/server.key`,
     mediasoup: {
