@@ -47,6 +47,7 @@ module.exports = {
       },
       // WebRtcTransport settings
       webRtcTransport: {
+        // Make a listenIps entry with ip set to the instance's private IP address, and announcedIp set to the instance's public IPv4 address.
         listenIps: [
           {
             ip: '127.0.0.1',

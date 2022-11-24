@@ -20,14 +20,52 @@
 
   <script src="../dist/mediasoup-adapter.js"></script>
   <!-- mediasoup-client necessary -->
-  <script src="../dist/mediasoupclient.min.js"></script>
+  <script src="../dist/mediasoup-client.min.js"></script>
   <script>
     console.log('mediasoup-client-version', mediasoupClient.version);
   </script>
 
-  <!-- make sure the websokcet connection is alive -->
   <script src="https://unpkg.com/aframe-randomizer-components@^3.0.1/dist/aframe-randomizer-components.min.js"></script>
   <script src="https://unpkg.com/aframe-environment-component@1.3.1/dist/aframe-environment-component.min.js"></script>
+
+  <!-- get-stats -->
+  <script src="./js/get-stats.js"></script>
+  <style>
+    .statsPanel {
+      position: absolute;
+      bottom: 10px;
+      left: 10px;
+      width: 900px;
+      height: 300px;
+      z-index: 99;
+      color: white;
+    }
+
+    table {
+      width: 100%;
+      height: 80%;
+    }
+
+    .value {
+      text-align: center;
+      width: 800px;
+      max-width: 1000px;
+      overflow: auto
+    }
+
+    td {
+      text-align: center
+    }
+
+
+
+    .stopBtn {
+      width: 100%;
+      margin: 10px auto;
+      text-transform: uppercase;
+      text-align: center;
+    }
+  </style>
 </head>
 
 <body>
@@ -36,7 +74,7 @@
       debug: true;
       adapter: mediasoup;
       video: true;
-      audio: true;
+      audio: false;
     ">
     <a-assets timeout="1000">
       <!-- Templates -->
@@ -70,8 +108,8 @@
     </a-assets>
 
     <a-entity id="rig">
-      <a-entity id="player" networked="template:#avatar-template;attachTemplateToLocal:true" camera position="0 4 0"
-        wasd-controls look-controls>
+      <a-entity id="player" networked="template:#avatar-template;attachTemplateToLocal:false" camera position="0 4 0"
+        wasd-controls look-controls get-stats="enable: true">
         <a-sphere class="head" visible="false" random-color></a-sphere>
       </a-entity>
 
@@ -79,6 +117,50 @@
 
     <a-entity environment="preset:arches"></a-entity>
     <a-entity light="type:ambient;intensity:0.5"></a-entity>
+
+    <div class="statsPanel">
+      <table>
+        <tr>
+          <th>属性</th>
+          <th class="value">属性值</th>
+        </tr>
+        <tr>
+          <td>position</td>
+          <td id="position" class="value">position</td>
+        </tr>
+        <tr>
+          <td>rotation</td>
+          <td id="rotation" class="value">rotation</td>
+        </tr>
+        <tr>
+          <td>scale</td>
+          <td id="scale" class="value">scale</td>
+        </tr>
+        <tr>
+          <td>quaternion</td>
+          <td id="quaternion" class="value">quaternion</td>
+        </tr>
+        <tr>
+          <td>camera</td>
+          <td id="camera" class="value">camera</td>
+        </tr>
+        <tr>
+          <td>worldQuaternion</td>
+          <td id="worldQuaternion" class="value">worldQuaternion</td>
+        </tr>
+        <tr>
+          <td>worldPosition</td>
+          <td id="worldPosition" class="value">worldPosition</td>
+        </tr>
+        <tr>
+          <td>worldDirection</td>
+          <td id="worldDirection" class="value">worldDirection</td>
+        </tr>
+      </table>
+      <div class="stopBtn"
+        onclick="document.body.dispatchEvent(new CustomEvent('disable-stats')); this.textContent='disabled'; this.disabled=true">
+        stop</div>
+    </div>
   </a-scene>
 
   <script>
@@ -102,10 +184,57 @@
     (document.querySelector('a-scene')).addEventListener('adapter-ready', ({ detail: adapter }) => {
       // disable/enable simulcast
       adapter.simulcastMode = false
-      
+
       // set heartbeat interval to xx secs
       // adapter.setHeartbeatTimer(100)
     })
+
+
+
+    let propertyList = [
+      'position',
+      'rotation',
+      'quaternion',
+      'scale',
+      'camera',
+      'worldDirection',
+      'worldQuaternion',
+      'worldPosition'
+    ]
+    let valueList = propertyList.map(each => document.getElementById(each))
+    console.log(valueList);
+    document.body.onload = () => {
+      console.log('onload');
+      document.body.addEventListener('stats-update', ({ detail }) => {
+        console.log(detail);
+        let dataList = propertyList.map((_, index) => {
+          let key = propertyList[index]
+          let value = detail[key]
+          let obj = {}
+
+          // 怎么筛选 https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/stringify
+          obj[key] = JSON.stringify(value)
+
+
+          if (key === 'camera') {
+            // 额外处理
+            // console.log(value);
+            let list = ['fov', 'near', 'type']
+            // let effectiveFov = value.getEffectiveFOV()
+            obj[key] = JSON.stringify({
+              fov: value.fov,
+              focus: value.focus,
+              // effectiveFov
+            })
+          }
+          valueList[index].textContent = obj[key]
+          return obj
+        }
+        )
+
+        // console.log(dataList);
+      })
+    }
 
 
 
