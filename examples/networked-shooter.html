@@ -1,0 +1,426 @@
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <title>Shooter Game</title>
+  <meta name="description" content="shooter game">
+
+  <!-- client-side communicate with signaling server -->
+  <script src="../dist/socketio_client_4.5.3.min.js"></script>
+
+  <!-- networked-aframe -->
+  <script src="../dist/aframe.min.js"></script>
+
+  <script src="../dist/networked-aframe.min.js"></script>
+
+  <script src="../dist/mediasoup-adapter.js"></script>
+  <!-- mediasoup-client necessary -->
+  <script src="../dist/mediasoupclient.min.js"></script>
+  <script>
+    console.log('mediasoup-client-version', mediasoupClient.version);
+  </script>
+
+  <!-- environment and components for building the 3D scene -->
+  <script src="./js/aframe-environment-component.min.js"></script>
+  <script src="./js/spawn-in-circle.component.js"></script>
+  <script src="./js/gun.component.js"></script>
+  <script src="./js/forward.component.js"></script>
+  <script src="./js/remove-in-seconds.component.js"></script>
+  <script src="./js/random-color.component.js"></script>
+  <script src="./js/jump.component.js"></script>
+  <script src="./js/intersection-generate.js"></script>
+
+  <script>
+    var globalColor = '#000'
+    function onConnect(event) {
+      console.log(`%c连接成功 客户端id为${event?.detail?.clientId}`, 'color: blue');
+    }
+  </script>
+
+</head>
+
+<body>
+  <!-- a-scene加stats组件可以显示实时FPS/entity数量/requestAnimationFrame -->
+  <a-scene networked-scene="
+      app: shooting;
+      room: shooter;
+      debug: true;
+      adapter: mediasoup;
+      video: false
+    " loading-screen="dotsColor: #FFFFCC; backgroundColor: #996666" vr-mode-ui="enterVRButton: #EnterVRButton">
+
+    <a-assets>
+
+      <!-- <img id="sky" src="" crossorigin="anonymous" /> -->
+      <img id="sky" crossorigin="anonymous">
+
+      <!-- Templates -->
+      <!-- robot -->
+      <template id="robot-template">
+        <a-entity class="robot">
+
+          <!-- 躯干 -->
+          <a-box class="robot-body" width="1.5" height="2" depth="1"></a-box>
+
+          <!-- 允许玩家视频 -->
+          <a-plane color="#FFF" width="4" height="3" position="0 7.5 0" material="side: back"
+            networked-video-source="streamName: video">
+          </a-plane>
+          <a-plane color="#FFF" width="4" height="3" position="0 4 0" material="side: back"
+            networked-video-source="streamName: screenshare">
+          </a-plane>
+
+          <!-- 头 -->
+          <a-sphere class="head" radius="0.6" position="0 1.6 0" material="color: #FFCCCC"></a-sphere>
+
+          <!-- 俩胳膊 -->
+          <a-box id="left-arm" width="0.5" height="1" depth="0.6" position="-1 0.5 0" color="gray">
+          </a-box>
+          <a-box id="right-arm" width="0.5" height="1" depth="0.6" position="1 0.5 0" color="gray">
+          </a-box>
+
+          <!-- 俩腿 -->
+          <a-sphere id="left-foot" radius="0.3" position="-0.5 -1.3 0" color="gray"></a-sphere>
+          <a-sphere id="right-foot" radius="0.3" position="0.5 -1.3 0" color="gray"></a-sphere>
+
+          <!-- 武器 -->
+          <a-box class="gun" position="-0.9 0.1 -0.6" width="0.3" height="0.3" depth="1.2"></a-box>
+          <!-- <a-entity class="gun-tip" position="0.51 -0.10 -0.64"></a-entity> -->
+
+        </a-entity>
+      </template>
+
+      <!-- Bullet -->
+      <template id="bullet-template">
+        <a-entity>
+          <a-sphere class="bullet" scale="0.1 0.1 0.1" color="#AAA"></a-sphere>
+        </a-entity>
+      </template>
+
+      <!-- Voxel -->
+      <template id="voxel-template">
+        <a-entity>
+          <a-box color="#FF3399" scale="1.5 1.5 1.5" class="voxel"></a-box>
+        </a-entity>
+      </template>
+
+      <!-- /Templates -->
+    </a-assets>
+
+    <!-- 射手 -->
+    <a-entity id="player" networked="template: #robot-template;attachTemplateToLocal: false;" camera="fov: 90"
+      position="0 1.6 -1" wasd-controls="" look-controls gun="bulletTemplate: #bullet-template; isAutomatic: false"
+      spawn-in-circle="radius: 5">
+
+      <!-- scale和size最好相同 -->
+      <a-cursor intersection-generate="event: mouseup; voxelTemplate: #voxel-template; size: 1.5; cooldown: 6">
+      </a-cursor>
+
+      <a-box class="robot-body" random-color visible="false"></a-box>
+      <a-box class="gun" material="color: #AAA" visible="true"></a-box>
+    </a-entity>
+
+    <div class="control">
+      <button id="videoBtn" onClick="toggleStream(this, 'video')" disabled>enable webcam</button>
+      <button id="shareBtn" onClick="toggleStream(this, 'screenshare')" disabled>enable screenshare</button>
+      <button id="audioBtn" onClick="toggleStream(this, 'audio')" disabled>enable microphone</button>
+    </div>
+
+
+    <!-- 环境 -->
+    <a-entity environment="preset: starry; fog: 0.2; dressingAmount: 1000"></a-entity>
+    <a-entity light="color: #ccccff; intensity: 1; type: ambient;" visible=""></a-entity>
+    <a-entity light="color: #ffaaff; intensity: 1.5" position="5 5 5"></a-entity>
+
+    <!-- 进入VR模式 -->
+    <a id="EnterVRButton" href="#">Shooting Game in VR Mode</a>
+
+
+
+    <!-- logo -->
+    <!-- <a-box width="3" depth="3" src="#bupt" height="3" position="-10 12 -20"
+      animation="property: rotation; to: 0 360 360; dur: 15000; loop:true; easing: linear" color="#888">
+    </a-box>
+    <a-box width="3" depth="3" src="#hauwei" height="3" position="10 12 -20"
+      animation="property: rotation; to: 0 360 360; dur: 15000; loop:true; easing: linear" color="#FFF">
+    </a-box> -->
+  </a-scene>
+
+  <style>
+
+  </style>
+  <script src="./js/prevent-menu.js"></script>
+  <script>
+    let webcamStream = null;
+    let microphoneStream = null;
+    let screenshareStream = null;
+    async function toggleStream(target, type) {
+
+      let stream = type === 'video' ? webcamStream : type === 'audio' ? microphoneStream : screenshareStream
+      if (target.textContent.includes('enable')) {
+        try {
+          // enable/resume stream
+          if (!stream) {
+            // first time
+            switch (type) {
+              case 'video':
+                webcamStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+                await NAF.connection.adapter.addLocalMediaStream(webcamStream, type)
+                break;
+              case 'audio':
+                microphoneStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true })
+                await NAF.connection.adapter.addLocalMediaStream(microphoneStream, type)
+                break;
+              case 'screenshare':
+                screenshareStream = await navigator.mediaDevices.getDisplayMedia()
+                await NAF.connection.adapter.addLocalMediaStream(screenshareStream, type)
+                break;
+              default:
+                return console.log(`unknown mediastream type: ${type}`)
+                break;
+            }
+          } else {
+            const { e, msg, length } = NAF.connection.adapter.resumeStream(type)
+            if (e) return
+            if (!length) return console.log(`no ${type} producers now`);
+          }
+        } catch (e) {
+          return console.log(`error occured when enabing stream...`, e);
+        }
+
+        target.textContent = `disable ${type}`
+
+
+      } else {
+        // disable/pause stream
+        if (!stream) return console.log(`no ${type} stream yet`)
+
+        const { e, msg, length } = NAF.connection.adapter.pauseStream(type)
+        if (e) return
+        if (!length) return console.log(`no ${type} producers now`);
+        target.textContent = `enable ${type}`
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      document.querySelector('a-scene').addEventListener('adapter-ready', ({ detail: adapter }) => {
+
+        // disable/enable simulcast
+        adapter.simulcastMode = false
+
+        // set heartbeat interval to xx secs
+        adapter.setHeartbeatTimer(30)
+
+        // allow to control the stream
+        videoBtn.disabled = audioBtn.disabled = shareBtn.disabled = false
+      })
+    })
+
+  </script>
+  <script>
+    document.querySelector('#ssaky').src = `https://cdn.glitch.com/e6225ccd-c32e-4cf8-b039-e78814a8cb78%2Fbg-3.jpg?random=${+new Date()}`
+    // Called by Networked-Aframe when connected to server
+    function onConnect() {
+      console.log('onConnect', new Date());
+    }
+  </script>
+  <script>
+    // 判断是否是vip玩家 增加子弹射速 设置为自动连发
+    /**
+     * -1: 无事发生
+     * 1: 增加射速
+     * 2: 视野变宽
+     * 3: 1+2
+     **/
+    function isVipPlayer() {
+      let url = location.search
+      if (url.indexOf('?') === -1) {
+        return -1
+      }
+      let query = location.search.split('?')[1]
+      let regex = /isVip=(\d{1})/
+      let res = query.match(regex)
+      if (res == null) return -1
+      if (parseInt(res[1]) !== NaN) {
+        return parseInt(res[1])
+      }
+      return -1
+    }
+
+    let player = document.querySelector('#player')
+
+    const upgradeGun = (entity) => {
+      console.log('%c升级武器', 'color: blue')
+      entity.setAttribute('gun', { isAutomatic: true })
+
+    }
+
+    const broadenSight = (entity, fov = 120) => {
+      console.log('%c升级视野', 'color: blue')
+      entity.setAttribute('camera', 'fov', fov)
+    }
+
+    const speedUp = (entity, accelerate = 80) => {
+      console.log('%c升级移速', 'color: blue')
+      entity.setAttribute('wasd-controls', 'acceleration', accelerate)
+
+    }
+
+    (function (entity) {
+      switch (isVipPlayer()) {
+        case -1:
+          return console.log('普通玩家');
+          break;
+        case 1:
+          console.log('v1玩家 视野')
+          broadenSight(entity)
+          break;
+        case 2:
+          console.log('v2玩家 视野+移速')
+          broadenSight(entity, 120)
+          speedUp(entity, 80)
+          break;
+        case 3:
+          console.log('v3玩家 视野+射速')
+          broadenSight(entity, 120)
+          upgradeGun(entity)
+          break;
+        case 4:
+          console.log('v4玩家 视野+射速+移速')
+          broadenSight(entity, 120)
+          upgradeGun(entity)
+          speedUp(entity, 100)
+          break;
+        default:
+          return console.log('未识别玩家等级');
+      }
+
+    })(player)
+
+    // 组件数据同步到dom 一般为了性能 不会同步
+    // player.flushToDom()
+    // document.querySelector('a-entity#player').flushToDOM();
+
+  </script>
+
+
+  <script>
+      // 自定义事件 jump
+      (function () {
+        let player = document.querySelector('#player')
+        let isJumping = false
+        // throttle
+        document.body.addEventListener('keyup', e => {
+          // console.log('jump');
+          if (isJumping) {
+            return
+          }
+          let duration = 200
+          if (e.keyCode === 32) {
+            isJumping = true
+            player.setAttribute('jump', { height: 1.5, duration })
+            setTimeout(() => {
+              player.removeAttribute('jump')
+              isJumping = false
+            }, 200)
+          }
+        })
+      })()
+  </script>
+
+  <script>
+
+    NAF.schemas.add({
+      template: '#robot-template',
+      components: [
+        'position',
+        'rotation',
+        {
+          selector: '.robot-body',
+          component: 'material',
+          property: 'color'
+        },
+      ]
+    });
+
+    // 同步voxel的颜色
+    NAF.schemas.add({
+      template: '#voxel-template',
+      components: [
+        'position',
+        'rotation',
+        'material',
+        {
+          selector: '.voxel',
+          component: 'material',
+          property: 'color'
+        }
+      ]
+    })
+    // Define custom schema for syncing avatar color, set by random-color
+    console.log('当前联网的schema', NAF.schemas);
+
+  </script>
+
+  <script>
+
+  </script>
+</body>
+
+<style>
+  /* 进入VR模式 */
+  #EnterVRButton {
+    position: fixed;
+    bottom: 50px;
+    right: 50px;
+    z-index: 999;
+    font-family: 'Comic Sans MS';
+    color: rgba(53, 237, 28, 0.892);
+    font-size: 24px;
+    user-select: none;
+  }
+
+  .camera {
+    position: fixed;
+    display: none;
+    bottom: 3%;
+    left: 3%;
+    z-index: 999;
+  }
+
+  .button {
+    cursor: pointer;
+    background: #fff;
+    height: 40px;
+    width: 130px;
+    border-radius: 30px;
+    margin-right: 10px;
+  }
+
+  .control {
+    position: absolute;
+    width: 600px;
+    height: 50px;
+    left: 20px;
+    bottom: 20px;
+    background: #4fc3c3;
+    border: 1px solid #232322;
+    border-radius: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 99
+  }
+
+  #videoBtn,
+  #audioBtn,
+  #shareBtn {
+    height: 100%;
+    font-size: 20px;
+    font-family: 'Comic Sans MS';
+    border: 1px solid #232322;
+    border-radius: 10px;
+  }
+</style>
+
+</html>
