@@ -31,7 +31,7 @@ AFRAME.registerComponent('intersection-generate', {
                 // Create element.
                 var voxel = document.createElement('a-entity');
                 console.log(this.data);
-                voxel.setAttribute('networked', 'template:' + this.data.voxelTemplate);
+                voxel.setAttribute('networked', 'template', this.data.voxelTemplate);
 
                 voxel.addEventListener('click',()=>{
                     // console.log('click');
