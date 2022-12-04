@@ -28,6 +28,9 @@ class MediasoupAdapter {
         this.audioProducer = {};   // producerId->producer instance
         this.audioConsumers = {};  // consumerId->consumer instance
 
+        this.screenProducer = {};
+        this.screenConsumers = {};
+
         this.iceServers = config.iceServers;
         this.simulcastMode = config.simulcastMode;
         this.simulcastConfig = config.simulcastConfig;
@@ -35,8 +38,10 @@ class MediasoupAdapter {
         // store video/audio streams of clients
         this.audioStreams = {};  // clientId->audioStream
         this.videoStreams = {};  // clientId->videoStream
+        this.screenStreams = {}; // clientId->screen share streams
         this.pendingAudioRequest = {};
         this.pendingVideoRequest = {};
+        this.pendingScreenRequest = {};
 
         this.heartbeatInterval = 20 // in seconds
         this.hearbeatTimer = null
@@ -144,53 +149,53 @@ class MediasoupAdapter {
                         await self.gatherExistingProducers()
                         // console.warn(self.device, self.producerTransport, self.consumerTransport);
 
-                        let localStream = null;
-                        try {
-                            if (self.sendAudio || self.sendVideo) {
-                                localStream = await navigator.mediaDevices.getUserMedia({
-                                    video: self.sendVideo,
-                                    audio: self.sendAudio
-                                })
-                            }
-                        } catch (e) {
-                            // maybe permission denied
-                            console.log(e)
-                            return
-                        }
+                        // let localStream = null;
+                        // try {
+                        //     if (self.sendAudio || self.sendVideo) {
+                        //         localStream = await navigator.mediaDevices.getUserMedia({
+                        //             video: self.sendVideo,
+                        //             audio: self.sendAudio
+                        //         })
+                        //     }
+                        // } catch (e) {
+                        //     // maybe permission denied
+                        //     console.log(e)
+                        //     return
+                        // }
 
                         // store audio streams
-                        if (self.sendAudio) {
+                        // if (self.sendAudio) {
 
-                            if (localStream) self.storeAudioStream(self.myId, localStream)
-                            if (!self.producerTransport) return console.error('producerTransport not created yet')
-                            if (!self.device.canProduce('audio')) return console.error('device does not support audio')
+                        //     if (localStream) self.storeAudioStream(self.myId, localStream)
+                        //     if (!self.producerTransport) return console.error('producerTransport not created yet')
+                        //     if (!self.device.canProduce('audio')) return console.error('device does not support audio')
 
-                            try {
-                                const track = localStream.getAudioTracks()[0]
-                                const params = { track }
-                                const producer = await self.producerTransport.produce(params)
-                                self.audioProducer[producer.id] = producer // producer.kind === 'audio'
-                            } catch (e) {
-                                console.error('fail to produce audio stream', e);
-                            }
-                        }
+                        //     try {
+                        //         const track = localStream.getAudioTracks()[0]
+                        //         const params = { track }
+                        //         const producer = await self.producerTransport.produce(params)
+                        //         self.audioProducer[producer.id] = producer // producer.kind === 'audio'
+                        //     } catch (e) {
+                        //         console.error('fail to produce audio stream', e);
+                        //     }
+                        // }
 
-                        // store video streams
-                        if (self.sendVideo) {
+                        // // store video streams
+                        // if (self.sendVideo) {
 
-                            if (localStream) self.storeVideoStream(self.myId, localStream)
-                            if (!self.producerTransport) return console.error('producerTransport not created yet')
-                            if (!self.device.canProduce('video')) return console.error('device does not support video')
+                        //     if (localStream) self.storeVideoStream(self.myId, localStream)
+                        //     if (!self.producerTransport) return console.error('producerTransport not created yet')
+                        //     if (!self.device.canProduce('video')) return console.error('device does not support video')
 
-                            try {
-                                const track = localStream.getVideoTracks()[0]
-                                const params = self.simulcastMode ? { track, ...self.simulcastConfig } : { track }
-                                const producer = await self.producerTransport.produce(params)
-                                self.videoProducer[producer.id] = producer // producer.kind === 'video'
-                            } catch (e) {
-                                console.log('fail to produce video stream', e);
-                            }
-                        }
+                        //     try {
+                        //         const track = localStream.getVideoTracks()[0]
+                        //         const params = self.simulcastMode ? { track, ...self.simulcastConfig } : { track }
+                        //         const producer = await self.producerTransport.produce(params)
+                        //         self.videoProducer[producer.id] = producer // producer.kind === 'video'
+                        //     } catch (e) {
+                        //         console.log('fail to produce video stream', e);
+                        //     }
+                        // }
                     }, 100)
                 });
 
@@ -211,6 +216,7 @@ class MediasoupAdapter {
                     self.producerTransport = self.consumerTransport = null
                     self.removeAudioStream(self.myId)
                     self.removeVideoStream(self.myId)
+                    self.removeScreenStream(self.myId)
                     // manually reconnect
                     socket.connect()
                 })
@@ -314,12 +320,64 @@ class MediasoupAdapter {
         }
     }
 
+    async addLocalMediaStream(stream, streamName) {
+        const self = this
+        if (!self.producerTransport) return console.error('producerTransport not created yet')
+        console.log({ streamName });
+        switch (streamName) {
+            case 'video':
+                {
+                    if (!self.device.canProduce('video')) return console.error('device does not support video')
+                    const track = stream.getVideoTracks()[0]
+                    const params = self.simulcastMode ? { track, ...self.simulcastConfig } : { track }
+                    params.appData = { streamName }
+                    const producer = await self.producerTransport.produce(params)
+                    self.videoProducer[producer.id] = producer // producer.kind === 'video'
+                }
+                break;
+            case 'audio':
+                {
+                    if (!self.device.canProduce('audio')) return console.error('device does not support audio')
+                    const track = stream.getAudioTracks()[0]
+                    const params = { track }
+                    params.appData = { streamName }
+                    const producer = await self.producerTransport.produce(params)
+                    self.audioProducer[producer.id] = producer // producer.kind === 'audio'
+                }
+                break;
+            case 'screenshare':
+                {
+                    if (!self.device.canProduce('video')) return console.error('device does not support video')
+                    const track = stream.getVideoTracks()[0]
+                    const params = { track }
+                    params.appData = { streamName }
+                    const producer = await self.producerTransport.produce(params)
+                    self.screenProducer[producer.id] = producer // producer.kind === 'video'
+                }
+                break;
+            default:
+                console.log(`unknown type: ${type}`)
+                break;
+        }
+    }
+
+    removeLocalMediaStream(stream, streamName) {
+        // TODO
+    }
+
+
+
+
     removeAudioStream(clientId) {
         delete this.audioStreams[clientId]
     }
 
     removeVideoStream(clientId) {
         delete this.videoStreams[clientId]
+    }
+
+    removeScreenStream(clientId) {
+        delete this.screenStreams[clientId]
     }
 
 
@@ -340,6 +398,16 @@ class MediasoupAdapter {
             NAF.log.write("Received pending video for " + clientId);
             this.pendingVideoRequest[clientId](stream);
             delete this.pendingVideoRequest[clientId](stream);
+        }
+    }
+
+    storeScreenStream(clientId, stream) {
+        this.screenStreams[clientId] = stream;
+
+        if (this.pendingScreenRequest[clientId]) {
+            NAF.log.write("Received pending screen for " + clientId);
+            this.pendingScreenRequest[clientId](stream);
+            delete this.pendingScreenRequest[clientId](stream);
         }
     }
 
@@ -367,16 +435,26 @@ class MediasoupAdapter {
                     self.pendingVideoRequest[clientId] = resolve;
                 });
             }
+        } else if (type === 'screenshare') {
+            if (this.screenStreams[clientId]) {
+                NAF.log.write("Already had screen for " + clientId);
+                return Promise.resolve(this.screenStreams[clientId]);
+            } else {
+                NAF.log.write("Waiting on screen for " + clientId);
+                return new Promise(resolve => {
+                    self.pendingScreenRequest[clientId] = resolve;
+                });
+            }
         }
     }
 
     pauseStream(type = 'video') {
         try {
-            const producers = Object.values(type === 'video' ? this.videoProducer : this.audioProducer)
+            const producers = Object.values(type === 'video' ? this.videoProducer : type === 'audio' ? this.audioProducer : this.screenProducer)
             const { length } = producers
             if (!producers || !length) return { e: null, msg: `no ${type} producers now`, length }
             producers.forEach(producer => {
-                console.log(producer);
+                // console.log(producer);
                 producer.pause()
             })
             return { e: null, msg: 'pause stream success', length }
@@ -388,7 +466,7 @@ class MediasoupAdapter {
 
     resumeStream(type = 'video') {
         try {
-            const producers = Object.values(type === 'video' ? this.videoProducer : this.audioProducer)
+            const producers = Object.values(type === 'video' ? this.videoProducer : type === 'audio' ? this.audioProducer : this.screenProducer)
             const { length } = producers
             if (!producers || !length) return { e: null, msg: `no ${type} producers now`, length }
             producers.forEach(producer => {
@@ -452,16 +530,19 @@ class MediasoupAdapter {
 
         if (!this.consumerTransport) return console.log(`consumerTransport doesn't exist`)
 
-        const { kind, newStream: consumerstream } = await this.getConsumeStream(this.consumerTransport, producerId)
+        const { kind, newStream: consumerstream, streamName } = await this.getConsumeStream(this.consumerTransport, producerId)
 
-        console.log('subscribe sucessfully', { kind, consumerstream });
+        console.log('subscribe sucessfully', { kind, streamName, consumerstream });
 
-        switch (kind) {
+        switch (streamName) {
             case 'video':
                 this.storeVideoStream(socketId, consumerstream)
                 break;
             case 'audio':
                 this.storeAudioStream(socketId, consumerstream)
+                break;
+            case 'screenshare':
+                this.storeScreenStream(socketId, consumerstream)
                 break;
             default:
                 console.log('unknown kind', kind);
@@ -474,7 +555,7 @@ class MediasoupAdapter {
         const result = await this.socket.request('consumeStream', { rtpCapabilities, _producerId })
         if (!result) return null
 
-        const { producerId, id, kind, rtpParameters } = result
+        const { producerId, id, kind, rtpParameters, streamName } = result
         const consumer = await consumerTransport.consume({
             producerId,
             id,
@@ -487,7 +568,8 @@ class MediasoupAdapter {
         newStream.addTrack(consumer.track)
         return {
             newStream,
-            kind
+            kind,
+            streamName
         }
     }
 
@@ -539,13 +621,14 @@ class MediasoupAdapter {
                     .catch(failureCall)
             })
 
-            self.producerTransport.on('produce', async ({ kind, rtpParameters }, successCall, failureCall) => {
+            self.producerTransport.on('produce', async ({ kind, rtpParameters, appData }, successCall, failureCall) => {
                 try {
-                    console.log('produce stream', kind);
+                    console.log('produce stream', kind, { appData });
                     const { producerId: id } = await self.socket.request('produce', {
                         id: self.producerTransport.id,
                         kind,
-                        rtpParameters
+                        rtpParameters,
+                        appData
                     })
                     successCall({ id })
                 } catch (e) {

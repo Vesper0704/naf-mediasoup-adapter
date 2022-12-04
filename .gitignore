@@ -3,7 +3,8 @@ logs
 *.log
 npm-debug.log*
 问题.md
-
+# VS Code
+.vscode
 # Runtime data
 pids
 *.pid

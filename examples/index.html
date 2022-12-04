@@ -26,31 +26,31 @@
   </script>
 
 
-  <script src="https://unpkg.com/aframe-randomizer-components@^3.0.1/dist/aframe-randomizer-components.min.js"></script>
-  <script src="https://unpkg.com/aframe-environment-component@1.3.1/dist/aframe-environment-component.min.js"></script>
+  <script src="./js/aframe-randomizer-components.min.js"></script>
+  <script src="./js/aframe-environment-component.min.js"></script>
 
   <style>
     .control {
       position: absolute;
-      width: 300px;
+      width: 600px;
       height: 50px;
-      left: 50px;
-      bottom: 50px;
+      left: 20px;
+      bottom: 20px;
       background: #4fc3c3;
       border: 1px solid #232322;
       border-radius: 10px;
       display: flex;
-      justify-content: space-around;
+      justify-content: space-between;
       align-items: center;
       z-index: 99
     }
 
     #videoBtn,
-    #audioBtn {
-      width: 50%;
-      height: 80%;
+    #audioBtn,
+    #shareBtn {
+      height: 100%;
       font-size: 20px;
-      font-family: 'Comic Snas MS';
+      font-family: 'Comic Sans MS';
       border: 1px solid #232322;
       border-radius: 10px;
     }
@@ -64,20 +64,25 @@
       room: default;
       debug: true;
       adapter: mediasoup;
-      video: true;
-      audio: true;
+      video: false;
+      audio: false;
     ">
     <a-assets timeout="1000">
       <img id="sky" crossorigin="anonymous">
       <!-- Avatar -->
       <template id="avatar-template">
         <a-entity class="avatar">
-          <a-plane color="#FFF" width="4" height="3" position="0 3 0" material="side: back" networked-video-source>
+          <a-plane color="#FFF" width="4" height="3" position="0 5 0" material="side: back"
+            networked-video-source="streamName: video">
           </a-plane>
-          <a-plane color="#FFF" width="4" height="3" rotation="0 0 0" position="0 5 0" material="side: front"
-            networked-audio-source>
+          <a-plane color="#FFF" width="4" height="3" position="0 1 0" material="side: back"
+            networked-video-source="streamName: screenshare">
           </a-plane>
-          </a-plane>
+
+
+          <!-- <a-plane color="#FFF" width="4" height="3" rotation="0 0 0" position="0 5 0" material="side: front"
+            networked-audio-source="streamName: audio">
+          </a-plane> -->
           <a-sphere class="head" scale="0.45 0.5 0.4"></a-sphere>
           <a-entity class="face" position="0 0.05 0">
             <a-sphere class="eye" color="#efefef" position="0.16 0.1 -0.35" scale="0.12 0.12 0.12">
@@ -101,8 +106,9 @@
     </a-entity>
 
     <div class="control">
-      <button id="videoBtn" onClick="toggleStream('video')" disabled>stop video</button>
-      <button id="audioBtn" onClick="toggleStream('audio')" disabled>stop audio</button>
+      <button id="videoBtn" onClick="toggleStream(this, 'video')" disabled>enable webcam</button>
+      <button id="shareBtn" onClick="toggleStream(this, 'screenshare')" disabled>enable screenshare</button>
+      <button id="audioBtn" onClick="toggleStream(this, 'audio')" disabled>enable microphone</button>
     </div>
 
     <a-entity environment="preset:arches"></a-entity>
@@ -110,12 +116,17 @@
   </a-scene>
 
   <script>
-    document.querySelector('#sky').src = `https://cdn.glitch.com/e6225ccd-c32e-4cf8-b039-e78814a8cb78%2Fbg-3.jpg?random=${+new Date()}`
+    document.querySelector('#sky').src = `https://cdn.pixabay.com/photo/2022/11/09/01/59/profile-7579739_1280.jpg?random=${+new Date()}`
     // Called by Networked-Aframe when connected to server
     function onConnect() {
       console.log('onConnect', new Date());
     }
 
+    let webcamStream = null;
+    let microphoneStream = null;
+    let screenshareStream = null;
+
+    // add templates to sync
     NAF.schemas.add({
       template: '#avatar-template',
       components: [
@@ -129,20 +140,51 @@
       ]
     });
 
-    function toggleStream(type) {
-      const targetBtn = type === 'video' ? videoBtn : audioBtn
-      const msg = targetBtn.textContent
-      if (msg.includes('stop')) {
-        const { e, msg, length } = NAF.connection.adapter.pauseStream(type)
-        // console.log({ e, msg, length });
-        if (e) return
-        if (!length) return console.log(`no ${type} producers now`);
-        targetBtn.textContent = `resume ${type}`
+    async function toggleStream(target, type) {
+
+      let stream = type === 'video' ? webcamStream : type === 'audio' ? microphoneStream : screenshareStream
+      if (target.textContent.includes('enable')) {
+        try {
+          // enable/resume stream
+          if (!stream) {
+            // first time
+            switch (type) {
+              case 'video':
+                webcamStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+                await NAF.connection.adapter.addLocalMediaStream(webcamStream, type)
+                break;
+              case 'audio':
+                microphoneStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true })
+                await NAF.connection.adapter.addLocalMediaStream(microphoneStream, type)
+                break;
+              case 'screenshare':
+                screenshareStream = await navigator.mediaDevices.getDisplayMedia()
+                await NAF.connection.adapter.addLocalMediaStream(screenshareStream, type)
+                break;
+              default:
+                return console.log(`unknown mediastream type: ${type}`)
+                break;
+            }
+          } else {
+            const { e, msg, length } = NAF.connection.adapter.resumeStream(type)
+            if (e) return
+            if (!length) return console.log(`no ${type} producers now`);
+          }
+        } catch (e) {
+          return console.log(`error occured when enabing stream...`, e);
+        }
+
+        target.textContent = `disable ${type}`
+
+
       } else {
-        const { e, msg, length } = NAF.connection.adapter.resumeStream(type)
+        // disable/pause stream
+        if (!stream) return console.log(`no ${type} stream yet`)
+
+        const { e, msg, length } = NAF.connection.adapter.pauseStream(type)
         if (e) return
         if (!length) return console.log(`no ${type} producers now`);
-        targetBtn.textContent = `stop ${type}`
+        target.textContent = `enable ${type}`
       }
     }
 
@@ -155,7 +197,8 @@
         // set heartbeat interval to xx secs
         adapter.setHeartbeatTimer(30)
 
-        videoBtn.disabled = audioBtn.disabled = false
+        // allow to control the stream
+        videoBtn.disabled = audioBtn.disabled = shareBtn.disabled = false
       })
     })
 
