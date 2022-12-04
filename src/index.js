@@ -43,6 +43,7 @@ class MediasoupAdapter {
         this.pendingVideoRequest = {};
         this.pendingScreenRequest = {};
 
+
         this.heartbeatInterval = 20 // in seconds
         this.hearbeatTimer = null
 
@@ -359,10 +360,41 @@ class MediasoupAdapter {
                 console.log(`unknown type: ${type}`)
                 break;
         }
+
     }
 
-    removeLocalMediaStream(stream, streamName) {
-        // TODO
+    async removeLocalMediaStream(streamName) {
+        if (!streamName) return
+
+        try {
+            const { videoProducer, audioProducer, screenProducer } = this
+            const producers = [...Object.values(videoProducer), ...Object.values(audioProducer), ...Object.values(screenProducer)]
+            console.log({ producers });
+
+            const targetProducer = producers.find(each => each.appData.streamName === streamName)
+            console.log({ targetProducer });
+
+            if (!targetProducer) return console.log(`producer of stream ${streamName} not found`);
+
+            const { id } = targetProducer
+            console.log({ id });
+
+            // No more media is transmitted. The producer's track is internally stopped by calling stop() on it
+            // This method should be called when the server side producer has been closed (and vice-versa).
+            // just like track.stop() in native WebRTC
+            targetProducer.close()
+
+            // notify the server to close corresponding producer
+            const { closeRes } = await this.socket.request('closeProducer', { id, streamName })
+            console.log(closeRes);
+
+            delete videoProducer[id]
+            delete audioProducer[id]
+            delete screenProducer[id]
+
+        } catch (e) {
+            console.log(`removeLocalMediaStream(${streamName}) error:`, e);
+        }
     }
 
 
@@ -478,6 +510,19 @@ class MediasoupAdapter {
             console.log('resumeStream error', e);
             return { e }
         }
+    }
+
+    /**
+     * for adapter compatibility
+     */
+    enableMicrophone(enabled) {
+        return enabled ? this.resumeStream('audio') : this.pauseStream('audio')
+    }
+    enableCamera(enabled) {
+        return enabled ? this.resumeStream('video') : this.pauseStream('video')
+    }
+    enableScreenSharing(enabled) {
+        return enabled ? this.resumeStream('screenshare') : this.pauseStream('screenshare')
     }
 
     updateTimeOffset() {

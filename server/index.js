@@ -69,6 +69,9 @@ async function registerEventsAndCallback(socket) {
             rtpParameters
         })
         producer.streamName = appData.streamName
+        producer.observer.on('close', () => {
+            console.log(`producer of ${producer.streamName} is closed`);
+        })
 
         let prevList = producerIdList.get(socket.id)
         if (!prevList) prevList = []
@@ -82,6 +85,20 @@ async function registerEventsAndCallback(socket) {
         })
         // inform other clients about the new producer
         socket.broadcast.emit('newProducer', { producerId: producer.id, socketId: socket.id })
+    })
+
+    socket.on('closeProducer', ({ id, streamName }, callback) => {
+        console.log('closeProducer', { id, streamName });
+        const targetProducer = producerListMap.get(id)
+        console.log({ targetProducer });
+        if (!targetProducer) return callback({ closeRes: 'failure' })
+        targetProducer.close()
+
+        producerListMap.delete(id)
+        let prevList = producerIdList.get(socket.id)
+        producerIdList.set(socket.id, prevList.filter(_id => _id !== id))
+
+        callback({ closeRes: 'success' })
     })
 
 
@@ -294,6 +311,10 @@ async function createConsumer(producer, rtpCapabilities, socketId) {
         consumer = await consumerTransport.consume({
             producerId: producer.id,
             rtpCapabilities
+        })
+
+        consumer.on('producerclose', () => {
+            console.log(`associated producer of stream ${streamName} closed so consumer closed`);
         })
 
         // {
