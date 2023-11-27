@@ -232,7 +232,22 @@ class MediasoupAdapter {
                 })
 
                 socket.on('newProducer', async ({ producerId, socketId }) => {
+                    console.log('收到了新的producer', producerId, socketId);
                     self.subscribeStream(producerId, socketId)
+                })
+
+                socket.on('closeProducer', async ({ socketId: clientId, streamName }) => {
+                    console.log('监听到closeProducer', clientId, streamName);
+                    switch (streamName) {
+                        case 'video':
+                            this.removeVideoStream(clientId)
+                            break;
+                        case 'audio':
+                            this.removeAudioStream(clientId)
+                            break;
+                        default:
+                            this.removeScreenStream(clientId)
+                    }
                 })
 
                 function receiveData(packet) {
@@ -374,7 +389,11 @@ class MediasoupAdapter {
             const targetProducer = producers.find(each => each.appData.streamName === streamName)
             console.log({ targetProducer });
 
-            if (!targetProducer) return console.log(`producer of stream ${streamName} not found`);
+            if (!targetProducer) {
+                const msg = `producer of stream ${streamName} not found`
+                console.log(msg);
+                return { e: msg, msg }
+            }
 
             const { id } = targetProducer
             console.log({ id });
@@ -382,6 +401,7 @@ class MediasoupAdapter {
             // No more media is transmitted. The producer's track is internally stopped by calling stop() on it
             // This method should be called when the server side producer has been closed (and vice-versa).
             // just like track.stop() in native WebRTC
+            targetProducer.pause()
             targetProducer.close()
 
             // notify the server to close corresponding producer
@@ -392,6 +412,11 @@ class MediasoupAdapter {
             delete audioProducer[id]
             delete screenProducer[id]
 
+            return {
+                e: null,
+                msg: `delete producer ${id} success`
+            }
+
         } catch (e) {
             console.log(`removeLocalMediaStream(${streamName}) error:`, e);
         }
@@ -401,14 +426,24 @@ class MediasoupAdapter {
 
 
     removeAudioStream(clientId) {
+        const audioStream = this.audioStreams[clientId]
+        if (!audioStream) return
+        audioStream.getTracks().forEach(track => audioStream.removeTrack(track))
         delete this.audioStreams[clientId]
     }
 
     removeVideoStream(clientId) {
+        const videoStream = this.videoStreams[clientId]
+        if (!videoStream) return
+        videoStream.getTracks().forEach(track => videoStream.removeTrack(track))
         delete this.videoStreams[clientId]
     }
 
     removeScreenStream(clientId) {
+        const screenStream = this.screenStreams[clientId]
+        if (!screenStream) return
+        console.log({ screenStream });
+        screenStream.getTracks().forEach(track => screenStream.removeTrack(track))
         delete this.screenStreams[clientId]
     }
 
@@ -421,6 +456,12 @@ class MediasoupAdapter {
             this.pendingAudioRequest[clientId](stream);
             delete this.pendingAudioRequest[clientId](stream);
         }
+        document.body.dispatchEvent(new CustomEvent('NEW_STREAM_RECEIEVED', {
+            detail: {
+                type: 'audio',
+                clientId
+            }
+        }))
     }
 
     storeVideoStream(clientId, stream) {
@@ -431,16 +472,38 @@ class MediasoupAdapter {
             this.pendingVideoRequest[clientId](stream);
             delete this.pendingVideoRequest[clientId](stream);
         }
+        document.body.dispatchEvent(new CustomEvent('NEW_STREAM_RECEIEVED', {
+            detail: {
+                type: 'video',
+                clientId
+            }
+        }))
     }
 
     storeScreenStream(clientId, stream) {
+        const prevStream = this.screenStreams[clientId]
         this.screenStreams[clientId] = stream;
+        console.log({ prevStream });
+        if (prevStream) {
+            prevStream.getTracks().forEach(track => {
+                prevStream.removeTrack(track)
+            })
+        }
+
 
         if (this.pendingScreenRequest[clientId]) {
             NAF.log.write("Received pending screen for " + clientId);
+            console.log('pending screen stream received from', clientId);
             this.pendingScreenRequest[clientId](stream);
             delete this.pendingScreenRequest[clientId](stream);
         }
+
+        document.body.dispatchEvent(new CustomEvent('NEW_STREAM_RECEIEVED', {
+            detail: {
+                type: 'screen',
+                clientId
+            }
+        }))
     }
 
     getMediaStream(clientId, type = 'audio') {
@@ -597,6 +660,7 @@ class MediasoupAdapter {
 
     async getConsumeStream(consumerTransport, _producerId) {
         const { rtpCapabilities } = this.device
+        console.log({ rtpCapabilities })
         const result = await this.socket.request('consumeStream', { rtpCapabilities, _producerId })
         if (!result) return null
 
@@ -611,6 +675,9 @@ class MediasoupAdapter {
 
         const newStream = new MediaStream()
         newStream.addTrack(consumer.track)
+        newStream.addEventListener('removetrack', (e) => {
+            console.log('去掉track', e);
+        })
         return {
             newStream,
             kind,
@@ -619,17 +686,18 @@ class MediasoupAdapter {
     }
 
 
+
     async initialAndLoadDevice() {
         if (!this.socket) return;
         if (this.device) return console.log('device loaded already')
         const routerRtpCapabilities = await this.socket.request('getRouterRtpCapabilities')
         try {
             this.device = new mediasoupClient.Device()
+            await this.device.load({ routerRtpCapabilities })
+            console.log('MediasoupClient Device load successfully');
         } catch (e) {
             return e
         }
-        await this.device.load({ routerRtpCapabilities })
-        console.log('MediasoupClient Device load successfully');
         return null
     }
 

@@ -8,6 +8,126 @@
 
   <!-- <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script> -->
   <script src="../dist/aframe.min.js"></script>
+  <script>
+    AFRAME.registerComponent('networked-video-source', {
+      schema: {
+        streamName: { default: 'video' }
+      },
+
+      dependencies: ['material'],
+
+      init: function () {
+        this.videoTexture = null;
+        this.video = null;
+        this.stream = null;
+
+        this._setMediaStream = this._setMediaStream.bind(this);
+        this._waitForMediaStream = this._waitForMediaStream.bind(this);
+        this._waitForMediaStream();
+      },
+
+      _waitForMediaStream() {
+        NAF.utils.getNetworkedEntity(this.el).then((networkedEl) => {
+          const ownerId = networkedEl.components.networked.data.owner;
+
+          if (ownerId) {
+            NAF.connection.adapter
+              .getMediaStream(ownerId, this.data.streamName)
+              .then(this._setMediaStream)
+              .catch((e) => { }
+                //naf.log.error(`Error getting media stream for ${ownerId}`, e)
+              );
+          } else {
+            // Correctly configured local entity, perhaps do something here for enabling debug audio loopback
+          }
+        });
+      },
+
+      _setMediaStream(newStream) {
+        if (!this.video) {
+          this.setupVideo();
+        }
+
+        // window.newStream = newStream
+
+        if (newStream !== this.stream) {
+          if (this.stream) {
+            this._clearMediaStream();
+          }
+
+          if (newStream) {
+            this.video.srcObject = newStream;
+
+            const playResult = this.video.play();
+            if (playResult instanceof Promise) {
+              playResult.catch((e) => { }
+                // naf.log.error(`Error play video stream`, e)
+              );
+            }
+
+            if (this.videoTexture) {
+              this.videoTexture.dispose();
+            }
+
+            this.videoTexture = new THREE.VideoTexture(this.video);
+
+            const mesh = this.el.getObject3D('mesh');
+            mesh.material.map = this.videoTexture;
+            mesh.material.needsUpdate = true;
+
+            // Listen for the 'removetrack' event on the MediaStream
+            // that is emitted when the remote screen sharing stops.
+            // newStream.addEventListener('removetrack', () => {
+            //   this._clearMediaStream();
+            //   this._waitForMediaStream();
+            // });
+            newStream.oninactive = () => {
+              console.log('removed track', newStream);
+              this._clearMediaStream();
+              this._waitForMediaStream();
+            };
+          }
+
+          this.stream = newStream;
+        }
+      },
+
+      _clearMediaStream() {
+        this.stream = null;
+
+        if (this.videoTexture) {
+          if (this.videoTexture.image instanceof HTMLVideoElement) {
+            // Note: this.videoTexture.image === this.video
+            const video = this.videoTexture.image;
+            video.pause();
+            video.srcObject = null;
+            video.load();
+          }
+
+          this.videoTexture.dispose();
+          this.videoTexture = null;
+          const mesh = this.el.getObject3D('mesh');
+          mesh.material.map = null;
+          mesh.material.needsUpdate = true;
+        }
+      },
+
+      remove: function () {
+        this._clearMediaStream();
+      },
+
+      setupVideo: function () {
+        if (!this.video) {
+          const video = document.createElement('video');
+          video.setAttribute('autoplay', true);
+          video.setAttribute('playsinline', true);
+          video.setAttribute('muted', true);
+          this.video = video;
+        }
+      }
+    });
+
+  </script>
 
   <!-- <script src="https://cdn.socket.io/4.5.3/socket.io.min.js"
     integrity="sha384-WPFUvHkB1aHA5TDSZi6xtDgkF0wXJcIIxXhC6h8OT8EH3fC5PWro5pWJ1THjcfEi"
@@ -16,9 +136,10 @@
 
   <!-- <script src="https://unpkg.com/networked-aframe@^0.10.0/dist/networked-aframe.min.js"
     crossorigin="anonymous"></script> -->
-  <script src="../dist/networked-aframe.min.js"></script>
-
-  <script src="../dist/mediasoup-adapter.js"></script>
+  <!-- <script src="../dist/networked-aframe.min.js"></script> -->
+  <script
+    src="https://cdn.jsdelivr.net/gh/networked-aframe/networked-aframe@29f697c55e156d715c98bda8a0b8f8af251c9fbc/dist/networked-aframe.min.js"></script>
+  <script src="../dist/mediasoup-adapter-dev.js"></script>
   <!-- mediasoup-client necessary -->
   <script src="../dist/mediasoupclient.min.js"></script>
   <script>
@@ -61,6 +182,7 @@
 
 <body>
   <a-scene networked-scene="
+      serverURL: https://localhost:8185;
       room: default;
       debug: true;
       adapter: mediasoup;
@@ -98,7 +220,7 @@
 
     <a-entity id="rig">
       <a-entity id="player" networked="template:#avatar-template;attachTemplateToLocal:false" camera position="0 4 0"
-        wasd-controls look-controls>
+        wasd-controls look-controls rotation="0 180 0">
         <a-sphere class="head" visible="true" random-color></a-sphere>
       </a-entity>
     </a-entity>
@@ -114,6 +236,17 @@
   </a-scene>
 
   <script>
+    let playerEl = null
+    function retrievePosFromUrlParams() {
+      const params = new URL(location.href).searchParams
+      const x = parseInt(params.get('x'))
+      const z = parseInt(params.get('z'))
+      playerEl = document.querySelector('#player')
+      if (!z) return
+      playerEl.setAttribute('position', `0 4 ${-z}`)
+      playerEl.setAttribute('rotation', { x: 0, y: 180, z: 0 });
+    }
+    setTimeout(retrievePosFromUrlParams, 1000)
     document.querySelector('#sky').src = `https://cdn.pixabay.com/photo/2022/11/09/01/59/profile-7579739_1280.jpg?random=${+new Date()}`
     // Called by Networked-Aframe when connected to server
     function onConnect() {
@@ -138,7 +271,8 @@
       ]
     });
 
-    async function toggleStream(target, type) {
+
+    async function toggleStreamv1(target, type) {
 
       let stream = type === 'video' ? webcamStream : type === 'audio' ? microphoneStream : screenshareStream
       if (target.textContent.includes('enable')) {
@@ -192,6 +326,52 @@
       }
     }
 
+    // 每次toggle的时候重新销毁/创建，而不是暂停/恢复
+    async function toggleStream(target, type) {
+
+      let stream = type === 'video' ? webcamStream : type === 'audio' ? microphoneStream : screenshareStream
+      if (target.textContent.includes('enable')) {
+        try {
+          switch (type) {
+            case 'video':
+              webcamStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+              await NAF.connection.adapter.addLocalMediaStream(webcamStream, type)
+              break;
+            case 'audio':
+              microphoneStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true })
+              await NAF.connection.adapter.addLocalMediaStream(microphoneStream, type)
+              break;
+            case 'screenshare':
+              screenshareStream = await navigator.mediaDevices.getDisplayMedia()
+              await NAF.connection.adapter.addLocalMediaStream(screenshareStream, type)
+              break;
+            default:
+              return console.log(`unknown mediastream type: ${type}`)
+              break;
+          }
+
+          target.textContent = `disable ${type}`
+        } catch (e) {
+          console.error('error occuerd when trying to capture stream', e);
+        }
+
+
+      } else {
+        // disable/pause stream
+        if (!stream) return console.log(`no ${type} stream yet`)
+        stream.getTracks(track => track.stop())
+        /**
+         * To reset the stream, set it manually:
+          * document.querySelector('a-plane[networked-video-source="streamName: screenshare"]').components['networked-video-source']._setMediaStream(stream)
+          * document.querySelector('a-plane[networked-video-source="streamName: screenshare"]').object3D.children[0].material.map.image.srcObject = NAF.connection.adapter.screenStreams[remote-client-id]
+         * or See here: https://github.com/Vesper0704/naf-mediasoup-adapter/issues/3#issuecomment-1826841518
+         */
+        const { e, msg } = await NAF.connection.adapter.removeLocalMediaStream(type)
+        console.log(e, msg);
+        if (e) return
+        target.textContent = `enable ${type}`
+      }
+    }
     document.addEventListener('DOMContentLoaded', () => {
       document.querySelector('a-scene').addEventListener('adapter-ready', ({ detail: adapter }) => {
 

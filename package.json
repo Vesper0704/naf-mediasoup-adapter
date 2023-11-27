@@ -15,12 +15,14 @@
     "dist": "npm run dist:min && npm run dist:max",
     "dist:max": "webpack --config webpack.config.js",
     "dist:min": "webpack --config webpack.prod.config.js",
-    "start": "node ./server/index.js"
+    "start": "nodemon ./server/index.js",
+    "dev-serve": "npx webpack serve"
   },
   "dependencies": {
+    "cors": "^2.8.5",
     "express": "^4.17.3",
-    "socket.io": "^4.5.3",
-    "mediasoup": "3.10.5"
+    "mediasoup": "3.13.1",
+    "socket.io": "^4.5.3"
   },
   "devDependencies": {
     "@babel/core": "^7.18.5",
@@ -28,7 +30,8 @@
     "babel-loader": "^8.2.5",
     "webpack": "^5.73.0",
     "webpack-cli": "^4.10.0",
-    "webpack-dev-middleware": "^5.3.3"
+    "webpack-dev-middleware": "^5.3.3",
+    "webpack-dev-server": "^4.15.1"
   },
   "lint-staged": {
     "*.js": "eslint",

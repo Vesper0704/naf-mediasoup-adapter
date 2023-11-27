@@ -6,8 +6,8 @@ const express = require('express')
 const https = require('https')
 const fs = require('fs')
 const path = require('path')
+const CORS = require('cors')
 const config = require('./config')
-
 let socketServer = null;
 let mediasoupWorker = null;
 let mediasoupRouter = null;
@@ -92,12 +92,14 @@ async function registerEventsAndCallback(socket) {
         const targetProducer = producerListMap.get(id)
         console.log({ targetProducer });
         if (!targetProducer) return callback({ closeRes: 'failure' })
+        targetProducer.pause()
         targetProducer.close()
 
         producerListMap.delete(id)
         let prevList = producerIdList.get(socket.id)
         producerIdList.set(socket.id, prevList.filter(_id => _id !== id))
-
+        // inform other clients about the departure of the producer, so they can remove the corresponding stream or cleanup sth.
+        socket.broadcast.emit('closeProducer', { socketId: socket.id, streamName })
         callback({ closeRes: 'success' })
     })
 
@@ -315,6 +317,7 @@ async function createConsumer(producer, rtpCapabilities, socketId) {
 
         consumer.on('producerclose', () => {
             console.log(`associated producer of stream ${streamName} closed so consumer closed`);
+            consumer.close()
         })
 
         // {
@@ -381,6 +384,11 @@ async function createMediasoupWorkerAndRouter() {
 const rooms = {}
 function createSocketServer() {
     const app = express()
+    // 允许跨域请求
+    app.use((req, res, next) => {
+        res.setHeader('Access-Control-Allow-Origin', '*')
+        next()
+    })
     app.get('/info', (_, res) => {
         res.json({
             server: 'mediasoup-server',
@@ -390,6 +398,7 @@ function createSocketServer() {
     })
     const staticPath = path.join(__dirname, '..')
     app.use(express.static(`${staticPath}`))
+    // app.use(cors())
 
     const { sslKey, sslCrt, listenPort, listenIp } = config
     const options = {
@@ -399,10 +408,24 @@ function createSocketServer() {
     const httpsServer = https.createServer(options, app)
 
     httpsServer.listen(listenPort, listenIp, () => {
-        console.log(`mediasoup server listening at https://127.0.0.1:${listenPort} ...`);
+        console.log(`mediasoup server listening at https://127.0.0.1:${listenPort} ..., open https://127.0.0.1:${listenPort}/examples`);
     })
 
-    socketServer = socketIO(httpsServer)
+    socketServer = socketIO(httpsServer, {
+        // 设置CORS，允许跨域请求. 这里已经不是HTTP请求了，注意不能简单地在http服务器中配置
+        cors: {
+            origin: [
+                'https://localhost:3000',
+                'https://127.0.0.1:3000',
+                'https://10.29.58.34:3000',
+                'http://localhost:3000',
+                // more client ip...
+            ], // 允许连接的来源
+            methods: ['GET', 'POST'], // 允许的 HTTP 方法
+            allowedHeaders: ['my-custom-header'], // 允许的额外的请求头
+            credentials: true // 允许发送凭证（比如cookies）
+        }
+    })
 
     socketServer.on('connection', socket => {
 
